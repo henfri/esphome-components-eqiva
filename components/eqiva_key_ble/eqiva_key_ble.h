@@ -40,7 +40,8 @@ class EqivaKeyBle : public BLEClientBase {
     uint16_t cached_write_handle_{0};
     uint16_t cached_read_handle_{0};
     bool manually_allocated_chars_{false};
-    bool disconnect_wifi_{false};
+    uint32_t last_activity_time_{0};
+    bool handshake_completed_{false};
 
     unsigned long getTime() {
         return millis() / 1000;
@@ -81,9 +82,9 @@ class EqivaKeyBle : public BLEClientBase {
     }
     public:
         ClientState clientState;
-        void set_disconnect_wifi(bool val) { this->disconnect_wifi_ = val; }
         void connect();
         void disconnect();
+        void loop() override;
         void startPair();
         void applySettings();
         void sendCommand(CommandType command);

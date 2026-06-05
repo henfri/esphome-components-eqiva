@@ -9,8 +9,6 @@
 #include "esphome/components/esp32_ble_client/ble_service.h"
 
 #ifdef USE_ESP32
-#include <esp_wifi.h>
-#include "esphome/components/wifi/wifi_component.h"
 
 namespace esphome {
 namespace eqiva_key_ble {
@@ -347,9 +345,10 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
     case ESP_GATTC_CLOSE_EVT: {
       ESP_LOGD(TAG, "ESP_GATTC_DISCONNECT_EVT / ESP_GATTC_CLOSE_EVT");
 #ifdef USE_ESP32
-      if (this->disconnect_wifi_ && wifi::global_wifi_component != nullptr) {
-        ESP_LOGI(TAG, "Re-enabling Wi-Fi on BLE disconnect/close event...");
-        wifi::global_wifi_component->enable();
+      if (!this->handshake_completed_ && this->cached_write_handle_ != 0) {
+        ESP_LOGW(TAG, "Connection lost before handshake completed. Invalidating GATT cache handles!");
+        this->cached_write_handle_ = 0;
+        this->cached_read_handle_ = 0;
       }
 #endif
       if (this->manually_allocated_chars_) {
@@ -481,6 +480,9 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
               this->user_key_sensor_->publish_state(string_to_hex(clientState.user_key).c_str());
               this->user_id_sensor_->publish_state(std::to_string(user_id));
   
+              this->handshake_completed_ = true;
+              this->last_activity_time_ = millis();
+
               sendingNonce = false;
               if (this->testing_) {
                 this->test_handshake_time_ = millis() - this->test_start_time_;
@@ -677,6 +679,7 @@ void EqivaKeyBle::sendNonce() {
 }
 
 bool EqivaKeyBle::sendMessage(eQ3Message::Message *msg, bool nonce) {
+    this->last_activity_time_ = millis();
     if (((sendingNonce == false && clientState.remote_session_nonce.length() > 0) || nonce) && this->state() == espbt::ClientState::ESTABLISHED) {
       ESP_LOGD(TAG, "Start send message");
       std::string data;
@@ -782,26 +785,24 @@ void EqivaKeyBle::runTest() {
 }
 
 void EqivaKeyBle::connect() {
-#ifdef USE_ESP32
-  if (this->disconnect_wifi_ && wifi::global_wifi_component != nullptr) {
-    ESP_LOGI(TAG, "Scheduling Wi-Fi disable in 20ms to allow API response...");
-    this->set_timeout("disconnect_wifi", 20, [this]() {
-      ESP_LOGD(TAG, "Disabling Wi-Fi component...");
-      wifi::global_wifi_component->disable();
-    });
-  }
-#endif
+  this->handshake_completed_ = false;
+  this->last_activity_time_ = millis();
   BLEClientBase::connect();
 }
 
 void EqivaKeyBle::disconnect() {
   BLEClientBase::disconnect();
-#ifdef USE_ESP32
-  if (this->disconnect_wifi_ && wifi::global_wifi_component != nullptr) {
-    ESP_LOGI(TAG, "Re-enabling Wi-Fi on BLE disconnect call...");
-    wifi::global_wifi_component->enable();
+}
+
+void EqivaKeyBle::loop() {
+  if (this->state() == espbt::ClientState::ESTABLISHED) {
+    uint32_t now = millis();
+    // 10 seconds idle timeout (hysteresis)
+    if (now - this->last_activity_time_ > 10000) {
+      ESP_LOGI(TAG, "Connection idle for 10 seconds. Disconnecting to save battery.");
+      this->disconnect();
+    }
   }
-#endif
 }
 
 }  // namespace eqiva_key_ble

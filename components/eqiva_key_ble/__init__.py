@@ -40,7 +40,6 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_MAC_ADDRESS): cv.templatable(cv.mac_address),
             cv.Optional(CONF_USER_ID, default=255): cv.one_of(0, 1, 2, 3, 4, 5, 6, 7, 255),
             cv.Optional(CONF_USER_KEY, default=""): cv.string,
-            cv.Optional("disconnect_wifi", default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -57,7 +56,6 @@ async def to_code(config):
     cg.add(var.set_user_id(config[CONF_USER_ID]))
     cg.add(var.set_user_key(config[CONF_USER_KEY]))
     cg.add(var.set_auto_connect(True))
-    cg.add(var.set_disconnect_wifi(config["disconnect_wifi"]))
 
 
 @automation.register_action(
