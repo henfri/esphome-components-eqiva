@@ -783,8 +783,11 @@ void EqivaKeyBle::runTest() {
 void EqivaKeyBle::connect() {
 #ifdef USE_ESP32
   if (this->disconnect_wifi_) {
-    ESP_LOGI(TAG, "Disconnecting Wi-Fi prior to BLE connect to eliminate coexistence latency...");
-    esp_wifi_stop();
+    ESP_LOGI(TAG, "Scheduling Wi-Fi disconnect in 150ms to allow API response...");
+    this->set_timeout("disconnect_wifi", 150, [this]() {
+      ESP_LOGI(TAG, "Disconnecting Wi-Fi now prior to BLE operation...");
+      esp_wifi_stop();
+    });
   }
 #endif
   BLEClientBase::connect();
