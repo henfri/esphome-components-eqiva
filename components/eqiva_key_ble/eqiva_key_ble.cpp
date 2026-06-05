@@ -10,6 +10,7 @@
 
 #ifdef USE_ESP32
 #include <esp_wifi.h>
+#include "esphome/components/wifi/wifi_component.h"
 
 namespace esphome {
 namespace eqiva_key_ble {
@@ -346,9 +347,9 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
     case ESP_GATTC_CLOSE_EVT: {
       ESP_LOGD(TAG, "ESP_GATTC_DISCONNECT_EVT / ESP_GATTC_CLOSE_EVT");
 #ifdef USE_ESP32
-      if (this->disconnect_wifi_) {
-        ESP_LOGI(TAG, "Re-activating Wi-Fi on BLE disconnect/close event...");
-        esp_wifi_start();
+      if (this->disconnect_wifi_ && wifi::global_wifi_component != nullptr) {
+        ESP_LOGI(TAG, "Re-enabling Wi-Fi on BLE disconnect/close event...");
+        wifi::global_wifi_component->enable();
       }
 #endif
       if (this->manually_allocated_chars_) {
@@ -782,11 +783,11 @@ void EqivaKeyBle::runTest() {
 
 void EqivaKeyBle::connect() {
 #ifdef USE_ESP32
-  if (this->disconnect_wifi_) {
-    ESP_LOGI(TAG, "Scheduling Wi-Fi disconnect in 150ms to allow API response...");
-    this->set_timeout("disconnect_wifi", 150, [this]() {
-      ESP_LOGI(TAG, "Disconnecting Wi-Fi now prior to BLE operation...");
-      esp_wifi_stop();
+  if (this->disconnect_wifi_ && wifi::global_wifi_component != nullptr) {
+    ESP_LOGI(TAG, "Scheduling Wi-Fi disable in 20ms to allow API response...");
+    this->set_timeout("disconnect_wifi", 20, [this]() {
+      ESP_LOGD(TAG, "Disabling Wi-Fi component...");
+      wifi::global_wifi_component->disable();
     });
   }
 #endif
@@ -796,9 +797,9 @@ void EqivaKeyBle::connect() {
 void EqivaKeyBle::disconnect() {
   BLEClientBase::disconnect();
 #ifdef USE_ESP32
-  if (this->disconnect_wifi_) {
-    ESP_LOGI(TAG, "Re-activating Wi-Fi on BLE disconnect call...");
-    esp_wifi_start();
+  if (this->disconnect_wifi_ && wifi::global_wifi_component != nullptr) {
+    ESP_LOGI(TAG, "Re-enabling Wi-Fi on BLE disconnect call...");
+    wifi::global_wifi_component->enable();
   }
 #endif
 }
