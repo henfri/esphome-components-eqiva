@@ -31,7 +31,6 @@ EqivaPair = eqiva_key_ble_ns.class_("EqivaPair", automation.Action)
 EqivaConnect = eqiva_key_ble_ns.class_("EqivaConnect", automation.Action)
 EqivaDisconnect = eqiva_key_ble_ns.class_("EqivaDisconnect", automation.Action)
 EqivaSettings = eqiva_key_ble_ns.class_("EqivaSettings", automation.Action)
-EqivaRunTest = eqiva_key_ble_ns.class_("EqivaRunTest", automation.Action)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -204,21 +203,6 @@ async def eqiva_key_ble_open_to_code(config, action_id, template_arg, args):
     synchronous=False,
 )
 async def eqiva_key_ble_status_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-@automation.register_action(
-    "eqiva_key_ble.run_test",
-    EqivaRunTest,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(EqivaKeyBle),
-        }
-    ),
-    synchronous=False,
-)
-async def eqiva_key_ble_run_test_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
