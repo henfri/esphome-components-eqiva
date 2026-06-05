@@ -259,16 +259,19 @@ lock:
           sorting_group_id: sorting_group_lock_state
     name: "Lock"
     lambda: |-
-      if (id(lock_state).state == "LOCKED") {
+      std::string state = id(lock_state).state;
+      if (state == "LOCKED") {
         return LOCK_STATE_LOCKED;
-      } else if (id(lock_state).state == "UNLOCKED" || id(lock_state).state == "OPENED") {
+      } else if (state == "UNLOCKED" || state == "OPENED") {
         return LOCK_STATE_UNLOCKED;
-      } else if(id(lock_state).state == "MOVING") {
-        return {};
-      } else if (id(lock_state).state == "UNKNOWN") {
+      } else if (state == "LOCKING") {
+        return LOCK_STATE_LOCKING;
+      } else if (state == "UNLOCKING") {
+        return LOCK_STATE_UNLOCKING;
+      } else if (state == "UNKNOWN") {
         return LOCK_STATE_JAMMED;
       } 
-      return LOCK_STATE_LOCKED;
+      return {};
     lock_action:
       - eqiva_key_ble.lock:
     unlock_action:

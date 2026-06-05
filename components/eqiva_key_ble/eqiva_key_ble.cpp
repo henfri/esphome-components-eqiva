@@ -504,24 +504,43 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
               switch(message.getLockStatus()) {
                 case 0: {
                   lockStatus = "UNKNOWN";
+                  this->previous_lock_state_ = lockStatus;
                   break;
                 }
                 case 1: {
-                  lockStatus = "MOVING";
+                  if (this->last_command_sent_ == LOCK) {
+                    lockStatus = "LOCKING";
+                  } else if (this->last_command_sent_ == UNLOCK || this->last_command_sent_ == OPEN) {
+                    lockStatus = "UNLOCKING";
+                  } else {
+                    if (this->previous_lock_state_ == "LOCKED") {
+                      lockStatus = "UNLOCKING";
+                    } else if (this->previous_lock_state_ == "UNLOCKED" || this->previous_lock_state_ == "OPENED") {
+                      lockStatus = "LOCKING";
+                    } else {
+                      lockStatus = "MOVING";
+                    }
+                  }
                   break;
                 }
                 case 2: {
                   lockStatus = "UNLOCKED";
+                  this->previous_lock_state_ = lockStatus;
                   break;
                 }
                 case 3: {
                   lockStatus = "LOCKED";
+                  this->previous_lock_state_ = lockStatus;
                   break;
                 }
                 case 4: {
                   lockStatus = "OPENED";
+                  this->previous_lock_state_ = lockStatus;
                   break;
                 }
+              }
+              if (lockStatus == "LOCKED" || lockStatus == "UNLOCKED" || lockStatus == "OPENED") {
+                this->last_command_sent_ = REQUEST_STATUS;
               }
               this->last_status_update_time_ = millis();
               this->lock_status_sensor_->publish_state(lockStatus);
@@ -556,6 +575,7 @@ void EqivaKeyBle::init() {
     }
 }
 void EqivaKeyBle::sendCommand(CommandType command) {
+  this->last_command_sent_ = command;
   if (command == REQUEST_STATUS) {
       auto * msg = new eQ3Message::StatusRequestMessage;
       sendMessage(msg, false);

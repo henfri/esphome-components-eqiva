@@ -47,6 +47,8 @@ class EqivaKeyBle : public BLEClientBase {
     uint32_t last_status_update_time_{0};
     std::string pending_mac_address_{""};
     bool pending_connect_{false};
+    CommandType last_command_sent_{REQUEST_STATUS};
+    std::string previous_lock_state_{"UNKNOWN"};
 
     unsigned long getTime() {
         return millis() / 1000;
