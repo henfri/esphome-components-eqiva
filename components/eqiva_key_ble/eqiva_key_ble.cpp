@@ -507,25 +507,45 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
               switch(message.getLockStatus()) {
                 case 0: {
                   lockStatus = "UNKNOWN";
+                  this->previous_lock_state_ = lockStatus;
                   break;
                 }
                 case 1: {
-                  lockStatus = "MOVING";
+                  if (this->last_command_sent_ == LOCK) {
+                    lockStatus = "LOCKING";
+                  } else if (this->last_command_sent_ == UNLOCK || this->last_command_sent_ == OPEN) {
+                    lockStatus = "UNLOCKING";
+                  } else {
+                    if (this->previous_lock_state_ == "LOCKED") {
+                      lockStatus = "UNLOCKING";
+                    } else if (this->previous_lock_state_ == "UNLOCKED" || this->previous_lock_state_ == "OPENED") {
+                      lockStatus = "LOCKING";
+                    } else {
+                      lockStatus = "MOVING";
+                    }
+                  }
                   break;
                 }
                 case 2: {
                   lockStatus = "UNLOCKED";
+                  this->previous_lock_state_ = lockStatus;
                   break;
                 }
                 case 3: {
                   lockStatus = "LOCKED";
+                  this->previous_lock_state_ = lockStatus;
                   break;
                 }
                 case 4: {
                   lockStatus = "OPENED";
+                  this->previous_lock_state_ = lockStatus;
                   break;
                 }
               }
+              if (lockStatus == "LOCKED" || lockStatus == "UNLOCKED" || lockStatus == "OPENED") {
+                this->last_command_sent_ = REQUEST_STATUS;
+              }
+              this->last_status_update_time_ = millis();
               this->lock_status_sensor_->publish_state(lockStatus);
               this->low_battery_sensor_->publish_state(message.isBatteryLow() ? "true" : "false");
 
@@ -600,6 +620,7 @@ void EqivaKeyBle::init() {
     }
 }
 void EqivaKeyBle::sendCommand(CommandType command) {
+  this->last_command_sent_ = command;
   if (command == REQUEST_STATUS) {
       auto * msg = new eQ3Message::StatusRequestMessage;
       sendMessage(msg, false);
@@ -746,6 +767,10 @@ bool EqivaKeyBle::sendMessage(eQ3Message::Message *msg, bool nonce) {
         }
         currentMsg = msg;
       }
+      if (this->state() == espbt::ClientState::IDLE) {
+        ESP_LOGI(TAG, "Triggering connection to send message.");
+        this->connect();
+      }
       return false;
     }
 }
@@ -784,6 +809,21 @@ void EqivaKeyBle::runTest() {
     this->connect();
 }
 
+void EqivaKeyBle::setup() {
+  BLEClientBase::setup();
+  this->set_auto_connect(!this->auto_disconnect_);
+  this->last_status_update_time_ = millis();
+}
+
+#ifdef USE_ESP32_BLE_DEVICE
+bool EqivaKeyBle::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+  if (device.address_uint64() == this->address_) {
+    this->remote_addr_type_ = device.get_address_type();
+  }
+  return BLEClientBase::parse_device(device);
+}
+#endif
+
 void EqivaKeyBle::connect() {
   this->handshake_completed_ = false;
   this->last_activity_time_ = millis();
@@ -795,12 +835,21 @@ void EqivaKeyBle::disconnect() {
 }
 
 void EqivaKeyBle::loop() {
+  uint32_t now = millis();
   if (this->state() == espbt::ClientState::ESTABLISHED) {
-    uint32_t now = millis();
-    // 10 seconds idle timeout (hysteresis)
-    if (now - this->last_activity_time_ > 10000) {
-      ESP_LOGI(TAG, "Connection idle for 10 seconds. Disconnecting to save battery.");
-      this->disconnect();
+    if (this->auto_disconnect_) {
+      if (now - this->last_activity_time_ > this->idle_timeout_) {
+        ESP_LOGI(TAG, "Connection idle for %u ms. Disconnecting to save battery.", this->idle_timeout_);
+        this->disconnect();
+      }
+    }
+  } else if (this->state() == espbt::ClientState::IDLE) {
+    if (this->auto_disconnect_ && this->status_update_interval_ > 0) {
+      if (now - this->last_status_update_time_ > this->status_update_interval_) {
+        ESP_LOGI(TAG, "Periodic status update interval reached. Connecting to retrieve status...");
+        this->last_status_update_time_ = now;
+        this->connect();
+      }
     }
   }
 }

@@ -40,6 +40,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_MAC_ADDRESS): cv.templatable(cv.mac_address),
             cv.Optional(CONF_USER_ID, default=255): cv.one_of(0, 1, 2, 3, 4, 5, 6, 7, 255),
             cv.Optional(CONF_USER_KEY, default=""): cv.string,
+            cv.Optional("auto_disconnect", default=True): cv.boolean,
+            cv.Optional("idle_timeout", default="10s"): cv.positive_time_period_milliseconds,
+            cv.Optional("status_update_interval", default="2h"): cv.positive_time_period_milliseconds,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -55,7 +58,9 @@ async def to_code(config):
         cg.add(var.set_address(mac_address.as_hex))
     cg.add(var.set_user_id(config[CONF_USER_ID]))
     cg.add(var.set_user_key(config[CONF_USER_KEY]))
-    cg.add(var.set_auto_connect(True))
+    cg.add(var.set_auto_disconnect(config["auto_disconnect"]))
+    cg.add(var.set_idle_timeout(config["idle_timeout"]))
+    cg.add(var.set_status_update_interval(config["status_update_interval"]))
 
 
 @automation.register_action(

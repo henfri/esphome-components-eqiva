@@ -42,6 +42,12 @@ class EqivaKeyBle : public BLEClientBase {
     bool manually_allocated_chars_{false};
     uint32_t last_activity_time_{0};
     bool handshake_completed_{false};
+    bool auto_disconnect_{true};
+    uint32_t idle_timeout_{10000};
+    uint32_t status_update_interval_{7200000};
+    uint32_t last_status_update_time_{0};
+    CommandType last_command_sent_{REQUEST_STATUS};
+    std::string previous_lock_state_{"UNKNOWN"};
 
     unsigned long getTime() {
         return millis() / 1000;
@@ -82,11 +88,18 @@ class EqivaKeyBle : public BLEClientBase {
     }
     public:
         ClientState clientState;
+        void setup() override;
+#ifdef USE_ESP32_BLE_DEVICE
+        bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
+#endif
         void connect();
         void disconnect();
         void loop() override;
         void startPair();
         void applySettings();
+        void set_auto_disconnect(bool val) { this->auto_disconnect_ = val; }
+        void set_idle_timeout(uint32_t ms) { this->idle_timeout_ = ms; }
+        void set_status_update_interval(uint32_t ms) { this->status_update_interval_ = ms; }
         void sendCommand(CommandType command);
         void set_user_id(int user_id) {
             clientState.user_id = user_id;

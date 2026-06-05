@@ -71,7 +71,7 @@ wifi:
 captive_portal:
 
 external_components:
-  - source: github://digaus/esphome-components-eqiva
+  - source: github://henfri/esphome-components-eqiva
 
 esp32_ble_tracker:
   id: ble_tracker
@@ -84,17 +84,13 @@ eqiva_ble:
 
 eqiva_key_ble:
   id: key_ble
+  # New high-level configuration parameters:
+  auto_disconnect: true
+  idle_timeout: 10s
+  status_update_interval: 2h
 
-time:
-  - platform: sntp
-    id: sntptime
-    # ...
-    on_time:
-      # Every 4 minutes
-      - seconds: 0
-        minutes: /4
-        then:
-          - eqiva_key_ble.status:
+# Note: The time platform (sntp) with a cron action is no longer required for status updates
+# as periodic checks are handled directly inside the C++ component when auto_disconnect is active.
 
 
 button:
@@ -263,16 +259,19 @@ lock:
           sorting_group_id: sorting_group_lock_state
     name: "Lock"
     lambda: |-
-      if (id(lock_state).state == "LOCKED") {
+      std::string state = id(lock_state).state;
+      if (state == "LOCKED") {
         return LOCK_STATE_LOCKED;
-      } else if (id(lock_state).state == "UNLOCKED" || id(lock_state).state == "OPENED") {
+      } else if (state == "UNLOCKED" || state == "OPENED") {
         return LOCK_STATE_UNLOCKED;
-      } else if(id(lock_state).state == "MOVING") {
-        return {};
-      } else if (id(lock_state).state == "UNKNOWN") {
+      } else if (state == "LOCKING") {
+        return LOCK_STATE_LOCKING;
+      } else if (state == "UNLOCKING") {
+        return LOCK_STATE_UNLOCKING;
+      } else if (state == "UNKNOWN") {
         return LOCK_STATE_JAMMED;
       } 
-      return LOCK_STATE_LOCKED;
+      return {};
     lock_action:
       - eqiva_key_ble.lock:
     unlock_action:
