@@ -33,6 +33,8 @@ EqivaPair = eqiva_key_ble_ns.class_("EqivaPair", automation.Action)
 EqivaConnect = eqiva_key_ble_ns.class_("EqivaConnect", automation.Action)
 EqivaDisconnect = eqiva_key_ble_ns.class_("EqivaDisconnect", automation.Action)
 EqivaSettings = eqiva_key_ble_ns.class_("EqivaSettings", automation.Action)
+EqivaSetDisconnectTimeout = eqiva_key_ble_ns.class_("EqivaSetDisconnectTimeout", automation.Action)
+EqivaSetStatusUpdateInterval = eqiva_key_ble_ns.class_("EqivaSetStatusUpdateInterval", automation.Action)
 
 CONFIG_SCHEMA = cv.ensure_list(
     cv.Schema(
@@ -206,4 +208,38 @@ async def eqiva_key_ble_open_to_code(config, action_id, template_arg, args):
 async def eqiva_key_ble_status_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
+    return var
+
+@automation.register_action(
+    "eqiva_key_ble.set_disconnect_timeout",
+    EqivaSetDisconnectTimeout,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(EqivaKeyBle),
+            cv.Required("timeout"): cv.templatable(cv.positive_time_period_milliseconds),
+        }
+    ),
+)
+async def eqiva_set_disconnect_timeout_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config["timeout"], args, cg.uint32)
+    cg.add(var.set_timeout(template_))
+    return var
+
+@automation.register_action(
+    "eqiva_key_ble.set_status_update_interval",
+    EqivaSetStatusUpdateInterval,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(EqivaKeyBle),
+            cv.Required("interval"): cv.templatable(cv.positive_time_period_milliseconds),
+        }
+    ),
+)
+async def eqiva_set_status_update_interval_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config["interval"], args, cg.uint32)
+    cg.add(var.set_interval(template_))
     return var

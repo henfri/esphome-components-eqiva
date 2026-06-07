@@ -263,6 +263,29 @@ class EqivaStatus : public Action<Ts...>, public Parented<EqivaKeyBle> {
 
 
 
+template<typename... Ts>
+class EqivaSetDisconnectTimeout : public Action<Ts...>, public Parented<EqivaKeyBle> {
+    TEMPLATABLE_VALUE(uint32_t, timeout)
+    public:
+        void play(const Ts &...x) override {
+            auto timeout = this->timeout_.value(x...);
+            this->parent_->set_disconnect_timeout(timeout);
+            this->parent_->set_auto_connect(timeout == 0);
+            ESP_LOGI("eqiva_key_ble", "Disconnect timeout updated to %" PRIu32 " ms", timeout);
+        }
+};
+
+template<typename... Ts>
+class EqivaSetStatusUpdateInterval : public Action<Ts...>, public Parented<EqivaKeyBle> {
+    TEMPLATABLE_VALUE(uint32_t, interval)
+    public:
+        void play(const Ts &...x) override {
+            auto interval = this->interval_.value(x...);
+            this->parent_->set_status_update_interval(interval);
+            ESP_LOGI("eqiva_key_ble", "Status update interval updated to %" PRIu32 " ms", interval);
+        }
+};
+
 }  // namespace eqiva_key_ble
 }  // namespace esphome
 
