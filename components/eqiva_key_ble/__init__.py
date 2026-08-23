@@ -219,6 +219,7 @@ async def eqiva_key_ble_status_to_code(config, action_id, template_arg, args):
             cv.Required("timeout"): cv.templatable(cv.positive_time_period_milliseconds),
         }
     ),
+    synchronous=True,
 )
 async def eqiva_set_disconnect_timeout_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -236,6 +237,7 @@ async def eqiva_set_disconnect_timeout_to_code(config, action_id, template_arg, 
             cv.Required("interval"): cv.templatable(cv.positive_time_period_milliseconds),
         }
     ),
+    synchronous=True,
 )
 async def eqiva_set_status_update_interval_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
