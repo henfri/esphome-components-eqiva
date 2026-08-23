@@ -10,6 +10,7 @@ esp32:
     type: esp-idf
     sdkconfig_options:
       CONFIG_BOOTLOADER_WDT_TIME_MS: "60000"
+      CONFIG_BT_GATTC_CACHE_NVS_FLASH: "y"
 
 # Enable logging
 logger:

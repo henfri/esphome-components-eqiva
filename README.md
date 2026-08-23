@@ -1,14 +1,19 @@
 Big thanks to previous work done by:  [@MariusSchiffer](https://github.com/MariusSchiffer/esp32-keyble), [@tc-maxx](https://github.com/tc-maxx/esp32-keyble), [@lumokitho](https://github.com/lumokitho/esp32-keyble) and the original creator [@oyooyo](https://github.com/oyooyo/keyble)
 
+# Eqiva eQ-3 Bluetooth Smart Lock for ESPHome
 
-# Example yaml:
+This ESPHome custom component allows full control of Eqiva eQ-3 BLE smart locks.
 
-The new C++ flow control completely manages connections, status polling, and disconnection logic. You do not need any UI inputs (like text fields or buttons) for normal operation. Just enter your lock credentials directly in the `eqiva_key_ble` component block:
+---
+
+## 1. Production Config (Recommended: C++ Flow Control)
+
+The built-in C++ flow control completely manages connection lifecycle, commands, and status updates directly on the ESP32. You don't need any complex YAML scripts or UI inputs.
 
 ```yaml
 esphome:
   name: esphome-eqiva-lock
-  friendly_name: esphome-eqiva-lock
+  friendly_name: Eqiva Lock
 
 esp32:
   board: esp32dev
@@ -19,6 +24,7 @@ esp32:
       CONFIG_BT_GATTC_CACHE_NVS_FLASH: "y"
 
 logger:
+
 api:
   encryption:
     key: !secret api_key
@@ -30,9 +36,6 @@ ota:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-  ap:
-    ssid: "Eqiva-Lock-Fallback"
-    password: !secret ap_password
 
 external_components:
   - source: github://digaus/esphome-components-eqiva
@@ -44,19 +47,19 @@ esp32_ble_tracker:
     window: 200ms
     active: true
 
-# Used for discovering the lock's MAC address (check ESPHome logs)
+# BLE discovery
 eqiva_ble:
 
-# Configure your lock credentials here (no UI inputs needed!)
+# Lock Component Configuration
 eqiva_key_ble:
   - id: my_lock
     mac_address: !secret eqiva_mac_address
     user_id: !secret eqiva_user_id
     user_key: !secret eqiva_user_key
-    disconnect_timeout: 10s
-    status_update_interval: 2h
+    # disconnect_timeout: 0s   # Default: 0s (Permanent connection, fastest response)
+    # disconnect_timeout: 10s  # Optional: Connect-on-demand (disconnects after 10s idle)
+    # status_update_interval: 2h
 
-# Read-only state sensors
 text_sensor:
   - platform: eqiva_key_ble
     eqiva_key_ble_id: my_lock
@@ -67,13 +70,10 @@ text_sensor:
       name: "Low Battery"
     lock_ble_state:
       name: "Lock BLE State"
-      icon: mdi:bluetooth-settings
 
-# Home Assistant Lock Entity
 lock:
   - platform: template
-    name: "Main Door Lock"
-    icon: "mdi:lock"
+    name: "Front Door Lock"
     lambda: |-
       std::string state = id(lock_state).state;
       if (state == "LOCKED") return LOCK_STATE_LOCKED;
@@ -93,20 +93,27 @@ lock:
           id: my_lock
 ```
 
+---
 
-# Performance Optimizations
+## 2. Connection Modes
 
-This component includes optimizations for fast connection times and low latency:
+* **Permanent Connection (`disconnect_timeout: 0s`, Default):**
+  * The ESP32 maintains a persistent BLE connection with the lock.
+  * Commands execute with near-zero latency.
+  * Recommended for standard setups and continuous operation.
 
-## Direct Connect and `esp32_ble_tracker`
-The component uses "Direct Connect" (bypassing the active scan window) to achieve fast connection times. However, if the `esp32_ble_tracker` is actively scanning when `connect()` is called, the Bluedroid stack may silently fail or produce long connection times. 
+* **Connect on Demand (`disconnect_timeout: >0s`, e.g. `10s`):**
+  * The ESP32 connects only when a command is triggered or the `status_update_interval` (default `2h`) expires.
+  * Disconnects automatically after `disconnect_timeout` of inactivity.
 
-To prevent this, you should ensure that `esp32_ble_tracker` is stopped before connecting to the lock, or that scanning is disabled by default. The provided `example.yaml` demonstrates this by using `continuous: false` and starting/stopping the scan based on wifi connectivity.
+---
 
-## Persistent GATT Caching (NVS)
-The component caches the GATT characteristics to bypass service discovery on subsequent connections. By default, this cache is stored in RAM and is lost upon rebooting the ESP32.
+## 3. Performance & GATT Caching (`CONFIG_BT_GATTC_CACHE_NVS_FLASH`)
 
-To persist the GATT cache across reboots and ensure fast connections immediately after startup, you must opt-in to NVS caching in your `esp-idf` framework configuration:
+By default in ESP-IDF, GATT service discovery results are only stored in volatile RAM and lost on ESP32 reboot.
+
+To enable instantaneous reconnects immediately after an ESP32 restart, opt-in to persistent flash caching by adding this to your `esp32:` block:
+
 ```yaml
 esp32:
   framework:
@@ -115,16 +122,14 @@ esp32:
       CONFIG_BT_GATTC_CACHE_NVS_FLASH: "y"
 ```
 
-# Initial Pairing
+---
 
-Before you can use the lock, you need to pair the ESP32 to it to obtain the `user_id` and `user_key`. Since the new YAML example above has no web UI inputs, you will need a temporary "Pairing Config" (or use ESPHome `secrets.yaml` and modify it later).
+## 4. Alternative / Flexible Setup (Dynamic UI Inputs & Pairing)
 
-1. Flash your ESP32 with an ESPHome config that contains the UI inputs (see the `example.yaml` file in this repository for the full pairing config).
-2. Look at the ESPHome logs to find the lock's `mac_address` (logged by `eqiva_ble`).
-3. Enter the `mac_address` in the Web UI.
-4. Scan the QR code of the pairing card included with your lock and paste the result into the `card_key` input on the Web UI.
-5. Put the lock into pairing mode (hold the open button for 5 seconds).
-6. Press the **Pair** Button on the Web UI.
-7. The ESP will pair and print the generated `user_key` and `user_id` in the ESPHome log (and Web UI).
-8. Copy the `mac_address`, `user_id`, and `user_key` to your `secrets.yaml`.
-9. You can now switch to the ultra-clean "Production Config" shown at the top of this README!
+If you prefer to configure your lock credentials dynamically from Home Assistant (without hardcoding them or editing `secrets.yaml`), or need to perform initial pairing via the Web UI:
+
+See [`example.yaml`](example.yaml) in this repository for the full configuration containing:
+* Text fields for `mac_address`, `user_key`, and `card_key`
+* Number field for `user_id`
+* Dropdown selects for `direction` (Left/Right), `position` (Vertical/Horizontal), and `turns` (1-4)
+* Action buttons for **Pair**, **Connect**, **Disconnect**, and **Apply Settings**
