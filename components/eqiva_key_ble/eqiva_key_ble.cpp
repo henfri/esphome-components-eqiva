@@ -29,8 +29,9 @@ void EqivaKeyBle::dump_config() {
 
 bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
                                     esp_ble_gattc_cb_param_t *param) {
-                                      
-  this->mac_address_sensor_->publish_state(this->address_str());
+  if (this->mac_address_sensor_ != nullptr) {
+    this->mac_address_sensor_->publish_state(this->address_str());
+  }
 
   // Bypassing MTU negotiation for Eqiva Lock on CONNECT event
   if (event == ESP_GATTC_CONNECT_EVT) {
@@ -299,7 +300,9 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
   if (!BLEClientBase::gattc_event_handler(event, esp_gattc_if, param))
     return false;
 
-  this->lock_ble_state_sensor_->publish_state(getClientState());
+  if (this->lock_ble_state_sensor_ != nullptr) {
+    this->lock_ble_state_sensor_->publish_state(getClientState());
+  }
 
   switch (event) {
     case ESP_GATTC_OPEN_EVT: {
@@ -493,8 +496,12 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
               }
 
               int user_id = message.getUserId();
-              this->user_key_sensor_->publish_state(string_to_hex(clientState.user_key).c_str());
-              this->user_id_sensor_->publish_state(std::to_string(user_id));
+              if (this->user_key_sensor_ != nullptr) {
+                this->user_key_sensor_->publish_state(string_to_hex(clientState.user_key).c_str());
+              }
+              if (this->user_id_sensor_ != nullptr) {
+                this->user_id_sensor_->publish_state(std::to_string(user_id));
+              }
   
               this->handshake_completed_ = true;
               this->last_activity_time_ = millis();
@@ -562,8 +569,16 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
                 this->last_command_sent_ = REQUEST_STATUS;
               }
               this->last_status_update_time_ = millis();
-              this->lock_status_sensor_->publish_state(lockStatus);
-              this->low_battery_sensor_->publish_state(message.isBatteryLow() ? "true" : "false");
+              this->current_lock_status_ = (LockStatus) message.getLockStatus();
+              for (auto &cb : this->status_callbacks_) {
+                cb(this->current_lock_status_, message.isBatteryLow());
+              }
+              if (this->lock_status_sensor_ != nullptr) {
+                this->lock_status_sensor_->publish_state(lockStatus);
+              }
+              if (this->low_battery_sensor_ != nullptr) {
+                this->low_battery_sensor_->publish_state(message.isBatteryLow() ? "true" : "false");
+              }
 
               ESP_LOGD(TAG, "# Lock state: %d", message.getLockStatus());
               ESP_LOGD(TAG, "# Battery low: %s", message.isBatteryLow() ? "true" : "false");

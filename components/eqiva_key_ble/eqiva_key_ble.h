@@ -143,12 +143,19 @@ class EqivaKeyBle : public BLEClientBase {
         uint64_t get_configured_mac_address() const { return this->configured_mac_address_; }
         void set_configured_mac_address(uint64_t mac) { this->configured_mac_address_ = mac; }
         
+        void register_status_callback(std::function<void(LockStatus, bool)> &&callback) {
+            this->status_callbacks_.push_back(std::move(callback));
+        }
+        LockStatus get_current_lock_status() const { return this->current_lock_status_; }
+
         void clear_bonds_and_cache(const std::string &mac);
         void dump_config() override;
         bool gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                 esp_ble_gattc_cb_param_t *param) override;
 
     protected: 
+        LockStatus current_lock_status_{UNKNOWN};
+        std::vector<std::function<void(LockStatus, bool)>> status_callbacks_;
         uint64_t configured_mac_address_{0};
         text_sensor::TextSensor *lock_ble_state_sensor_{nullptr};                
         text_sensor::TextSensor *low_battery_sensor_{nullptr};
