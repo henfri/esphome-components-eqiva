@@ -36,8 +36,8 @@ void EqivaLockEntity::dump_config() {
 }
 
 void EqivaLockEntity::control(const lock::LockCall &call) {
+  if (!call.get_state().has_value() || this->parent_ == nullptr) return;
   auto state = *call.get_state();
-  if (this->parent_ == nullptr) return;
 
   if (state == lock::LOCK_STATE_LOCKED) {
     this->publish_state(lock::LOCK_STATE_LOCKING);
@@ -74,6 +74,9 @@ void EqivaLockEntity::update_state_(LockStatus status) {
 
   // 2. Schloss meldet MOVING
   if (status == MOVING) {
+    if (this->state == lock::LOCK_STATE_UNLOCKING || this->state == lock::LOCK_STATE_LOCKING) {
+      return; // Transient moving state already active, keep it
+    }
     if (this->state == lock::LOCK_STATE_LOCKED) {
       this->publish_state(lock::LOCK_STATE_UNLOCKING);
     } else {
