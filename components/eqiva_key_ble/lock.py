@@ -34,3 +34,4 @@ async def to_code(config):
         sens = await cg.get_variable(config[CONF_LATCH_SENSOR])
         cg.add(var.set_latch_sensor(sens))
         cg.add(var.set_invert_latch_sensor(config[CONF_INVERT_LATCH_SENSOR]))
+        cg.add_define("USE_BINARY_SENSOR")

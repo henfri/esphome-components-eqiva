@@ -3,8 +3,17 @@
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/components/lock/lock.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "eQ3_constants.h"
+
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#else
+namespace esphome {
+namespace binary_sensor {
+class BinarySensor;
+}
+}
+#endif
 
 namespace esphome {
 namespace eqiva_key_ble {

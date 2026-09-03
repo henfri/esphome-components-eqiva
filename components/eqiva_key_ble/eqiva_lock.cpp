@@ -15,6 +15,7 @@ void EqivaLockEntity::setup() {
     });
   }
 
+#ifdef USE_BINARY_SENSOR
   if (this->latch_sensor_ != nullptr) {
     this->latch_sensor_->add_on_state_callback([this](bool state) {
       if (this->parent_ != nullptr) {
@@ -24,15 +25,18 @@ void EqivaLockEntity::setup() {
       }
     });
   }
+#endif
 }
 
 void EqivaLockEntity::dump_config() {
   LOG_LOCK(TAG, "Eqiva Lock", this);
+#ifdef USE_BINARY_SENSOR
   if (this->latch_sensor_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Latch Sensor: configured (Invert: %s)", YESNO(this->invert_latch_sensor_));
   } else {
     ESP_LOGCONFIG(TAG, "  Latch Sensor: not configured");
   }
+#endif
 }
 
 void EqivaLockEntity::control(const lock::LockCall &call) {
@@ -57,14 +61,17 @@ void EqivaLockEntity::open_latch() {
 
 void EqivaLockEntity::update_state_(LockStatus status) {
   bool bolt_in_latch = false;
-  bool has_latch_sensor = (this->latch_sensor_ != nullptr && this->latch_sensor_->has_state());
+  bool has_latch_sensor = false;
 
-  if (has_latch_sensor) {
+#ifdef USE_BINARY_SENSOR
+  if (this->latch_sensor_ != nullptr && this->latch_sensor_->has_state()) {
+    has_latch_sensor = true;
     bolt_in_latch = this->latch_sensor_->state;
     if (this->invert_latch_sensor_) {
       bolt_in_latch = !bolt_in_latch;
     }
   }
+#endif
 
   // 1. Ultimative Wahrheit: Wenn Riegelkontakt vorhanden und Riegel in der Falle -> LOCKED!
   if (has_latch_sensor && bolt_in_latch) {
