@@ -72,25 +72,12 @@ text_sensor:
       name: "Lock BLE State"
 
 lock:
-  - platform: template
+  - platform: eqiva_key_ble
     name: "Front Door Lock"
-    lambda: |-
-      std::string state = id(lock_state).state;
-      if (state == "LOCKED") return LOCK_STATE_LOCKED;
-      if (state == "UNLOCKED" || state == "OPENED") return LOCK_STATE_UNLOCKED;
-      if (state == "LOCKING") return LOCK_STATE_LOCKING;
-      if (state == "UNLOCKING") return LOCK_STATE_UNLOCKING;
-      if (state == "UNKNOWN") return LOCK_STATE_JAMMED;
-      return {};
-    lock_action:
-      - eqiva_key_ble.lock:
-          id: my_lock
-    unlock_action:
-      - eqiva_key_ble.unlock:
-          id: my_lock
-    open_action:
-      - eqiva_key_ble.open:
-          id: my_lock
+    eqiva_key_ble_id: my_lock
+    # Optional: Sensor fusion with an external door contact / latch reed sensor (e.g. KNX, Zigbee)
+    # latch_sensor: door_reed_sensor
+    # invert_latch_sensor: true # Set to true if sensor reports OFF when bolt is in latch
 ```
 
 ---
