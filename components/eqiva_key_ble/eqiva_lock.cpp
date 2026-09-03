@@ -92,9 +92,13 @@ void EqivaLockEntity::update_state_(LockStatus status) {
     return;
   }
 
-  // 3. Schloss meldet UNKNOWN (Positionsverlust / Jammed)
+  // 3. Schloss meldet UNKNOWN: nach Riegelkontakt gehen, sonst UNLOCKED (niemals fälschlich JAMMED)
   if (status == UNKNOWN) {
-    this->publish_state(lock::LOCK_STATE_JAMMED);
+    if (has_latch_sensor) {
+      this->publish_state(bolt_in_latch ? lock::LOCK_STATE_LOCKED : lock::LOCK_STATE_UNLOCKED);
+    } else {
+      this->publish_state(lock::LOCK_STATE_UNLOCKED);
+    }
     return;
   }
 
