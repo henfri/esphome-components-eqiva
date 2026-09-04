@@ -796,14 +796,14 @@ void EqivaKeyBle::setup() {
   BLEClientBase::setup();
   this->set_auto_connect(this->disconnect_timeout_ == 0);
   this->last_status_update_time_ = millis();
-  this->last_advertisement_time_ = millis();
+  this->last_contact_time_ = millis();
 }
 
 #ifdef USE_ESP32_BLE_DEVICE
 bool EqivaKeyBle::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   if (device.address_uint64() == this->address_) {
     this->remote_addr_type_ = device.get_address_type();
-    this->last_advertisement_time_ = millis();
+    this->last_contact_time_ = millis();
   }
   return BLEClientBase::parse_device(device);
 }
@@ -831,7 +831,7 @@ void EqivaKeyBle::clear_bonds_and_cache(const std::string &mac_str) {
   this->cached_write_handle_ = 0;
   this->cached_read_handle_ = 0;
   this->consecutive_connect_failures_ = 0;
-  this->last_advertisement_time_ = millis();
+  this->last_contact_time_ = millis();
   ESP_LOGI(TAG, "Invalidated cached GATT handles and reset watchdog for MAC swap");
 
   
@@ -886,6 +886,7 @@ void EqivaKeyBle::loop() {
     }
     if (current_state == espbt::ClientState::ESTABLISHED) {
       this->connection_succeeded_this_cycle_ = true;
+      this->last_contact_time_ = millis();
       if (this->consecutive_connect_failures_ > 0) {
         ESP_LOGI(TAG, "BLE connection established! Resetting failure counter (was %u)", this->consecutive_connect_failures_);
         this->consecutive_connect_failures_ = 0;
@@ -907,41 +908,31 @@ void EqivaKeyBle::loop() {
         this->connect_in_progress_ = false;
         if (!this->connection_succeeded_this_cycle_) {
           this->consecutive_connect_failures_++;
-          ESP_LOGW(TAG, "BLE connection attempt failed! Consecutive failures: %u / %u",
-                   this->consecutive_connect_failures_, this->max_connect_failures_);
-
-          if (this->max_connect_failures_ > 0) {
-            if (this->consecutive_connect_failures_ >= this->max_connect_failures_) {
-              ESP_LOGE(TAG, "Watchdog Level 2: Reached %u consecutive BLE failures! Triggering reboot to recover radio...",
-                       this->consecutive_connect_failures_);
-              App.safe_reboot();
-            } else if (this->consecutive_connect_failures_ == (this->max_connect_failures_ / 2)) {
-              if (esp32_ble_tracker::global_esp32_ble_tracker != nullptr) {
-                ESP_LOGW(TAG, "Watchdog Level 1: %u consecutive BLE failures. Restarting BLE scanner to clear GAP state...",
-                         this->consecutive_connect_failures_);
-                esp32_ble_tracker::global_esp32_ble_tracker->stop_scan();
-                esp32_ble_tracker::global_esp32_ble_tracker->set_scan_continuous(true);
-                esp32_ble_tracker::global_esp32_ble_tracker->start_scan();
-              }
-            }
-          }
+          ESP_LOGW(TAG, "BLE connection attempt failed! Consecutive failures: %u",
+                   this->consecutive_connect_failures_);
         }
       }
     }
   }
 
   uint32_t now = millis();
-  if (this->max_connect_failures_ > 0 && this->state() == espbt::ClientState::IDLE && this->address_ != 0 && this->address_ != 1) {
-    if (this->last_advertisement_time_ > 0 && (now - this->last_advertisement_time_ > 3600000)) { // 60 min without any BLE advertisement
-      ESP_LOGE(TAG, "Watchdog: No BLE advertisements heard from lock for 60 minutes! Rebooting ESP32 to recover radio...");
-      this->last_advertisement_time_ = now;
+  if (this->state() == espbt::ClientState::IDLE && this->address_ != 0 && this->address_ != 1) {
+    uint32_t time_since_contact = now - this->last_contact_time_;
+
+    // Level 2: Auto Reboot if silence exceeds configured timeout (0 = disabled)
+    if (this->watchdog_reboot_timeout_ms_ > 0 && time_since_contact > this->watchdog_reboot_timeout_ms_) {
+      ESP_LOGE(TAG, "Watchdog Level 2: No contact from lock for %u min (limit: %u min)! Rebooting ESP32 to recover radio...",
+               time_since_contact / 60000, this->watchdog_reboot_timeout_ms_ / 60000);
+      this->last_contact_time_ = now;
       App.safe_reboot();
-    } else if (this->last_advertisement_time_ > 0 && (now - this->last_advertisement_time_ > 1800000)) { // 30 min
-      static uint32_t last_scanner_restart = 0;
-      if (now - last_scanner_restart > 600000) { // once every 10 min
-        last_scanner_restart = now;
+    }
+    // Level 1: Scanner Reset if silence exceeds configured timeout (0 = disabled)
+    else if (this->watchdog_scanner_timeout_ms_ > 0 && time_since_contact > this->watchdog_scanner_timeout_ms_) {
+      if (now - this->last_scanner_restart_time_ > 600000) { // throttle scanner restart to once every 10 min
+        this->last_scanner_restart_time_ = now;
         if (esp32_ble_tracker::global_esp32_ble_tracker != nullptr) {
-          ESP_LOGW(TAG, "Watchdog: No BLE advertisements heard from lock for 30 minutes! Restarting BLE scanner...");
+          ESP_LOGW(TAG, "Watchdog Level 1: No contact from lock for %u min (limit: %u min). Restarting BLE scanner to clear GAP state...",
+                   time_since_contact / 60000, this->watchdog_scanner_timeout_ms_ / 60000);
           esp32_ble_tracker::global_esp32_ble_tracker->stop_scan();
           esp32_ble_tracker::global_esp32_ble_tracker->set_scan_continuous(true);
           esp32_ble_tracker::global_esp32_ble_tracker->start_scan();

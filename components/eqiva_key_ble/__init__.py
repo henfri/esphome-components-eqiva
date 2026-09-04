@@ -18,6 +18,8 @@ CONF_LOCK_TURNS = "lock_turns"
 CONF_DISCONNECT_TIMEOUT = "disconnect_timeout"
 CONF_STATUS_UPDATE_INTERVAL = "status_update_interval"
 CONF_MAX_CONNECT_FAILURES = "max_connect_failures"
+CONF_WATCHDOG_SCANNER_TIMEOUT = "watchdog_scanner_timeout"
+CONF_WATCHDOG_REBOOT_TIMEOUT = "watchdog_reboot_timeout"
 
 AUTO_LOAD = ["esp32_ble_client", "text_sensor"]
 DEPENDENCIES = ["esp32_ble_tracker"]
@@ -36,6 +38,8 @@ EqivaDisconnect = eqiva_key_ble_ns.class_("EqivaDisconnect", automation.Action)
 EqivaSettings = eqiva_key_ble_ns.class_("EqivaSettings", automation.Action)
 EqivaSetDisconnectTimeout = eqiva_key_ble_ns.class_("EqivaSetDisconnectTimeout", automation.Action)
 EqivaSetStatusUpdateInterval = eqiva_key_ble_ns.class_("EqivaSetStatusUpdateInterval", automation.Action)
+EqivaSetWatchdogScannerTimeout = eqiva_key_ble_ns.class_("EqivaSetWatchdogScannerTimeout", automation.Action)
+EqivaSetWatchdogRebootTimeout = eqiva_key_ble_ns.class_("EqivaSetWatchdogRebootTimeout", automation.Action)
 
 CONFIG_SCHEMA = cv.ensure_list(
     cv.Schema(
@@ -47,6 +51,8 @@ CONFIG_SCHEMA = cv.ensure_list(
             cv.Optional(CONF_DISCONNECT_TIMEOUT, default="0s"): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_STATUS_UPDATE_INTERVAL, default="2h"): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_MAX_CONNECT_FAILURES, default=4): cv.positive_int,
+            cv.Optional(CONF_WATCHDOG_SCANNER_TIMEOUT, default="30min"): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_WATCHDOG_REBOOT_TIMEOUT, default="60min"): cv.positive_time_period_milliseconds,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -66,6 +72,8 @@ async def to_code(configs):
         cg.add(var.set_disconnect_timeout(config[CONF_DISCONNECT_TIMEOUT]))
         cg.add(var.set_status_update_interval(config[CONF_STATUS_UPDATE_INTERVAL]))
         cg.add(var.set_max_connect_failures(config[CONF_MAX_CONNECT_FAILURES]))
+        cg.add(var.set_watchdog_scanner_timeout(config[CONF_WATCHDOG_SCANNER_TIMEOUT]))
+        cg.add(var.set_watchdog_reboot_timeout(config[CONF_WATCHDOG_REBOOT_TIMEOUT]))
 
 
 @automation.register_action(
@@ -247,4 +255,40 @@ async def eqiva_set_status_update_interval_to_code(config, action_id, template_a
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config["interval"], args, cg.uint32)
     cg.add(var.set_interval(template_))
+    return var
+
+@automation.register_action(
+    "eqiva_key_ble.set_watchdog_scanner_timeout",
+    EqivaSetWatchdogScannerTimeout,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(EqivaKeyBle),
+            cv.Required("timeout"): cv.templatable(cv.positive_time_period_milliseconds),
+        }
+    ),
+    synchronous=True,
+)
+async def eqiva_set_watchdog_scanner_timeout_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config["timeout"], args, cg.uint32)
+    cg.add(var.set_timeout(template_))
+    return var
+
+@automation.register_action(
+    "eqiva_key_ble.set_watchdog_reboot_timeout",
+    EqivaSetWatchdogRebootTimeout,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(EqivaKeyBle),
+            cv.Required("timeout"): cv.templatable(cv.positive_time_period_milliseconds),
+        }
+    ),
+    synchronous=True,
+)
+async def eqiva_set_watchdog_reboot_timeout_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config["timeout"], args, cg.uint32)
+    cg.add(var.set_timeout(template_))
     return var

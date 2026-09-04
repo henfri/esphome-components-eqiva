@@ -54,7 +54,10 @@ class EqivaKeyBle : public BLEClientBase {
     uint32_t consecutive_connect_failures_{0};
     bool connect_in_progress_{false};
     bool connection_succeeded_this_cycle_{false};
-    uint32_t last_advertisement_time_{0};
+    uint32_t last_contact_time_{0};
+    uint32_t last_scanner_restart_time_{0};
+    uint32_t watchdog_scanner_timeout_ms_{1800000}; // 30 min, 0 = disabled
+    uint32_t watchdog_reboot_timeout_ms_{3600000};  // 60 min, 0 = disabled
 
     unsigned long getTime() {
         return millis() / 1000;
@@ -116,6 +119,18 @@ class EqivaKeyBle : public BLEClientBase {
         }
         uint32_t get_consecutive_connect_failures() const {
             return this->consecutive_connect_failures_;
+        }
+        void set_watchdog_scanner_timeout(uint32_t ms) {
+            this->watchdog_scanner_timeout_ms_ = ms;
+        }
+        uint32_t get_watchdog_scanner_timeout() const {
+            return this->watchdog_scanner_timeout_ms_;
+        }
+        void set_watchdog_reboot_timeout(uint32_t ms) {
+            this->watchdog_reboot_timeout_ms_ = ms;
+        }
+        uint32_t get_watchdog_reboot_timeout() const {
+            return this->watchdog_reboot_timeout_ms_;
         }
         void connect();
         void disconnect();
@@ -317,6 +332,28 @@ class EqivaSetStatusUpdateInterval : public Action<Ts...>, public Parented<Eqiva
             auto interval = this->interval_.value(x...);
             this->parent_->set_status_update_interval(interval);
             ESP_LOGI("eqiva_key_ble", "Status update interval updated to %" PRIu32 " ms", interval);
+        }
+};
+
+template<typename... Ts>
+class EqivaSetWatchdogScannerTimeout : public Action<Ts...>, public Parented<EqivaKeyBle> {
+    TEMPLATABLE_VALUE(uint32_t, timeout)
+    public:
+        void play(const Ts &...x) override {
+            auto timeout = this->timeout_.value(x...);
+            this->parent_->set_watchdog_scanner_timeout(timeout);
+            ESP_LOGI("eqiva_key_ble", "Watchdog scanner timeout updated to %" PRIu32 " ms", timeout);
+        }
+};
+
+template<typename... Ts>
+class EqivaSetWatchdogRebootTimeout : public Action<Ts...>, public Parented<EqivaKeyBle> {
+    TEMPLATABLE_VALUE(uint32_t, timeout)
+    public:
+        void play(const Ts &...x) override {
+            auto timeout = this->timeout_.value(x...);
+            this->parent_->set_watchdog_reboot_timeout(timeout);
+            ESP_LOGI("eqiva_key_ble", "Watchdog reboot timeout updated to %" PRIu32 " ms", timeout);
         }
 };
 
