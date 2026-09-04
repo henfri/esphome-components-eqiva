@@ -262,6 +262,7 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
       } else {
         ESP_LOGD(TAG, "Eqiva Lock characteristics not found in local cache. Running standard service search...");
         
+#ifdef EQIVA_DEBUG
         // Debug local cache services
         uint16_t all_count = 0;
         esp_gatt_status_t all_status = esp_ble_gattc_get_service(
@@ -294,6 +295,7 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
             free(all_result);
           }
         }
+#endif
       }
     }
   }
