@@ -45,7 +45,7 @@ esp32_ble_tracker:
   scan_parameters:
     interval: 320ms
     window: 200ms
-    active: true
+    active: false  # Passive scanning prevents WiFi coexistence collisions and scanner lockups
 
 # BLE discovery
 eqiva_ble:
@@ -61,6 +61,14 @@ eqiva_key_ble:
     # status_update_interval: 2h
     # watchdog_scanner_timeout: 30min # Default: 30min. Restarts GAP scanner if no packets seen (0 = disabled)
     # watchdog_reboot_timeout: 60min  # Default: 60min. Reboots ESP32 if lock remains unreachable (0 = disabled)
+
+sensor:
+  - platform: eqiva_key_ble
+    eqiva_key_ble_id: my_lock
+    last_contact_duration:
+      name: "BLE Last Contact Duration"
+    consecutive_connect_failures:
+      name: "BLE Connect Failures"
 
 text_sensor:
   - platform: eqiva_key_ble
@@ -125,6 +133,10 @@ Single-radio ESP32 boards sharing 2.4 GHz WiFi and Bluetooth (coexistence) can o
 * **Runtime Configurable:** Timeouts can be set to `0` to disable, or dynamically adjusted via Home Assistant / ESPHome actions (`eqiva_key_ble.set_watchdog_scanner_timeout` and `eqiva_key_ble.set_watchdog_reboot_timeout`).
 * **State Recovery & Delayed Command Prevention:**
   If a connection fails or times out while the lock was requested to unlock/lock, the native lock entity immediately rolls back from transient `UNLOCKING`/`LOCKING` states to the actual door state as soon as BLE returns to `IDLE`. Any stale unexecuted commands in the send queue are safely discarded to prevent delayed "ghost" unlocks.
+* **Command Debouncing & Spam Protection:**
+  Duplicate lock/unlock requests sent while the motor is already in motion (`LOCKING` or `UNLOCKING`) are safely ignored to protect against repeated user clicks, race conditions, or automation bursts.
+* **Diagnostic Telemetry Sensors (`sensor.eqiva_key_ble`):**
+  Provides `last_contact_duration` (seconds elapsed since last beacon or connection) and `consecutive_connect_failures` (count of failed attempts) directly into Home Assistant for proactive signal-quality monitoring.
 
 ---
 

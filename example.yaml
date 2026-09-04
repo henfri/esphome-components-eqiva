@@ -106,8 +106,9 @@ external_components:
 esp32_ble_tracker:
   id: ble_tracker
   scan_parameters:
-    window: 300ms
-    continuous: false
+    interval: 320ms
+    window: 200ms
+    active: false
 
 # used for discovering the lock and get the mac_address, check logger for it
 eqiva_ble:
@@ -376,6 +377,12 @@ lock:
  
 
 sensor:
+  - platform: eqiva_key_ble
+    eqiva_key_ble_id: key_ble
+    last_contact_duration:
+      name: "BLE Last Contact Duration"
+    consecutive_connect_failures:
+      name: "BLE Connect Failures"
   - platform: internal_temperature
     name: "Internal Temperature"
     icon: mdi:thermometer
