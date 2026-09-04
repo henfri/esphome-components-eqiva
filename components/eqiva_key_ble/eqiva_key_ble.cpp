@@ -350,7 +350,7 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
       while (!this->sendQueue.empty()) {
         this->sendQueue.pop();
       }
-      this->sending = 0;
+      this->sending_time_ms_ = 0;
       this->sendingNonce = false;
       this->clientState.remote_session_nonce.clear();
       this->clientState.local_session_nonce.clear();
@@ -386,14 +386,14 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
       break;
     }
     case ESP_GATTC_SEARCH_RES_EVT: {
-      ESP_LOGD(TAG, "ESP_GATTC_REG_FOR_NOTIFY_EVT");
+      ESP_LOGD(TAG, "ESP_GATTC_SEARCH_RES_EVT");
       break;
     }
     case ESP_GATTC_WRITE_CHAR_EVT: {
       ESP_LOGD(TAG, "ESP_GATTC_WRITE_CHAR_EVT");
-      unsigned long currentMillis = getTime();
-      ESP_LOGI(TAG, "Send successfull: %lu | %lu | %lu", sending, currentMillis,  currentMillis - sending);
-      sending = 0;
+      uint32_t now = millis();
+      ESP_LOGI(TAG, "Send successfull: %u | %u | %u", this->sending_time_ms_, now, now - this->sending_time_ms_);
+      this->sending_time_ms_ = 0;
       sendFragment();
       break;
     }
@@ -403,7 +403,7 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
     }
     case ESP_GATTC_NOTIFY_EVT: {
       ESP_LOGD(TAG, "ESP_GATTC_NOTIFY_EVT");
-      sending = 0;
+      this->sending_time_ms_ = 0;
       if (param != NULL) {
 
         eQ3Message::MessageFragment frag;
@@ -515,8 +515,9 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
 
               sendingNonce = false;
               if (currentMsg != NULL) {
-                sendMessage(currentMsg, false);
-                currentMsg = NULL;
+                if (sendMessage(currentMsg, false)) {
+                  currentMsg = NULL;
+                }
               } else if (requestPair) {
                 finishPair();
                 requestPair = false;
@@ -634,23 +635,22 @@ void EqivaKeyBle::startPair() {
       clientState.user_id = 255;
       clientState.user_key.clear();
       clientState.remote_session_nonce.clear();
-        srand((unsigned int)time(NULL));
-      auto randchar = []() -> char
-      {
-          const char charset[] =
-          "0123456789"
-          "abcdefghijklmnopqrstuvwxyz";
-          const size_t max_index = (sizeof(charset) - 1);
-          return charset[ rand() % max_index ];
+      const char charset[] = "0123456789abcdefghijklmnopqrstuv";
+      auto randchar = [&charset]() -> char {
+          return charset[esp_random() & 0x1F];
       };
-      std::string str(16,0);
-      std::generate_n( str.begin(), 16, randchar );
+      std::string str(16, 0);
+      std::generate_n(str.begin(), 16, randchar);
       clientState.user_key = str;
       ESP_LOGI(TAG, "CardKey: %s", clientState.card_key.c_str());
       ESP_LOGI(TAG, "Please press and hold open button for 5 seconds to enter pairing mode");
       ESP_LOGI(TAG, "Trying to pair...");
-      init();
-      finishPair();
+      this->requestPair = true;
+      if (this->state() == espbt::ClientState::ESTABLISHED) {
+        init();
+      } else {
+        this->connect();
+      }
     } else {
       ESP_LOGI(TAG, "Card key missing!");
     }
@@ -737,16 +737,16 @@ bool EqivaKeyBle::sendMessage(eQ3Message::Message *msg, bool nonce) {
       return true;
     } else {
       ESP_LOGI(TAG, "Retaining message...");
-      unsigned long currentMillis = getTime();
+      uint32_t now = millis();
       auto retain_msg = [this](eQ3Message::Message *new_msg) {
         if (this->currentMsg != nullptr && this->currentMsg != new_msg) {
           delete this->currentMsg;
         }
         this->currentMsg = new_msg;
       };
-      // ESP_LOGE(TAG, "Millis: %d | %d", sending, currentMillis);
-      if (sending > 0 && currentMillis - sending > 3) {
-        sending = 0;
+      // ESP_LOGE(TAG, "Millis: %u | %u", this->sending_time_ms_, now);
+      if (this->sending_time_ms_ > 0 && (now - this->sending_time_ms_ > 3000)) {
+        this->sending_time_ms_ = 0;
         if (sendingNonce) {
           ESP_LOGI(TAG, "Nonce timeout, sending again...");
           sendNonce();
@@ -754,8 +754,9 @@ bool EqivaKeyBle::sendMessage(eQ3Message::Message *msg, bool nonce) {
         } else {
           ESP_LOGI(TAG, "Message timeout, sending again...");
           retain_msg(msg);
-          sendMessage(currentMsg, false);
-          currentMsg = NULL;
+          if (sendMessage(this->currentMsg, false)) {
+            this->currentMsg = nullptr;
+          }
         }
       } else {
         if (sendingNonce) {
@@ -772,8 +773,10 @@ bool EqivaKeyBle::sendMessage(eQ3Message::Message *msg, bool nonce) {
       if (this->state() == espbt::ClientState::IDLE) {
         if (this->address_ == 0 || this->address_ == 1) {
           ESP_LOGE(TAG, "Cannot connect: No valid MAC address configured! Please connect first.");
-          currentMsg = NULL;
-          free(msg);
+          if (this->currentMsg != nullptr) {
+            delete this->currentMsg;
+            this->currentMsg = nullptr;
+          }
         } else {
           ESP_LOGI(TAG, "Triggering connection to send message.");
           this->connect();
@@ -784,13 +787,13 @@ bool EqivaKeyBle::sendMessage(eQ3Message::Message *msg, bool nonce) {
 }
 
 void EqivaKeyBle::sendFragment() {
-    unsigned long currentMillis = getTime();
-    ESP_LOGD(TAG, "Check send frag: %s, %s", sendQueue.empty()  ? "empty" : "not-empty", sending > 0 ? "sending" : "not-sending");
-    if (sendQueue.empty() || sending > 0 && currentMillis - sending <= 3 || this->state() != espbt::ClientState::ESTABLISHED) {
+    uint32_t now = millis();
+    ESP_LOGD(TAG, "Check send frag: %s, %s", sendQueue.empty() ? "empty" : "not-empty", this->sending_time_ms_ > 0 ? "sending" : "not-sending");
+    if (sendQueue.empty() || (this->sending_time_ms_ > 0 && (now - this->sending_time_ms_ <= 3000)) || this->state() != espbt::ClientState::ESTABLISHED) {
       return;
     }
       
-    sending = currentMillis;
+    this->sending_time_ms_ = now;
     std::string data = sendQueue.front().data;
     sendQueue.pop();
     ESP_LOGI(TAG, "Sending: %d", (uint8_t *) (data.c_str()));

@@ -38,7 +38,7 @@ class EqivaKeyBle : public BLEClientBase {
     BLECharacteristic *write{nullptr};
     BLECharacteristic *read{nullptr};
     bool sendingNonce{false};
-    unsigned long sending{0};
+    uint32_t sending_time_ms_{0};
     eQ3Message::Message *currentMsg{nullptr};
     bool requestPair{false};
     uint16_t cached_write_handle_{0};
@@ -62,9 +62,6 @@ class EqivaKeyBle : public BLEClientBase {
     uint32_t watchdog_scanner_timeout_ms_{1800000}; // 30 min, 0 = disabled
     uint32_t watchdog_reboot_timeout_ms_{3600000};  // 60 min, 0 = disabled
 
-    unsigned long getTime() {
-        return millis() / 1000;
-    }
     std::string getClientState() {
         std::string client_state;
         switch(this->state()) {
@@ -174,7 +171,9 @@ class EqivaKeyBle : public BLEClientBase {
 
         void set_state(esphome::esp32_ble_tracker::ClientState st) {
             BLEClientBase::set_state(st);
-            this->lock_ble_state_sensor_->publish_state(getClientState()); 
+            if (this->lock_ble_state_sensor_ != nullptr) {
+                this->lock_ble_state_sensor_->publish_state(getClientState());
+            }
         };
         void set_pending_connection(const std::string &mac) {
             this->pending_mac_address_ = mac;
@@ -292,8 +291,8 @@ class EqivaPair : public Action<Ts...>, public Parented<EqivaKeyBle> {
             auto card_key = this->card_key_.value(x...);
             auto mac_address = this->mac_address_.value(x...);
             this->parent_->set_card_key(card_key);
-            this->parent_->startPair();
             this->parent_->set_address(string_to_mac(mac_address));
+            this->parent_->startPair();
         }
 };
 
