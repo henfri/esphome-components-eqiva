@@ -221,13 +221,16 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
         this->conn_id_ = param->open.conn_id;
         this->set_state(espbt::ClientState::CONNECTED);
 
-        if (write != nullptr) {
-          if (write->service != nullptr) delete write->service;
-          delete write;
-        }
-        if (read != nullptr) {
-          if (read->service != nullptr) delete read->service;
-          delete read;
+        if (this->manually_allocated_chars_) {
+          if (write != nullptr) {
+            if (write->service != nullptr) delete write->service;
+            delete write;
+          }
+          if (read != nullptr) {
+            if (read->service != nullptr) delete read->service;
+            delete read;
+          }
+          this->manually_allocated_chars_ = false;
         }
 
         write = new BLECharacteristic();
@@ -241,6 +244,10 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
         read->uuid = esp32_ble_tracker::ESPBTUUID::from_raw("359d4820-15db-11e6-82bd-0002a5d5c51b");
         read->service = new BLEService();
         read->service->client = this;
+
+        this->cached_write_handle_ = write_handle;
+        this->cached_read_handle_ = read_handle;
+        this->manually_allocated_chars_ = true;
 
         esp_err_t errRc = ::esp_ble_gattc_register_for_notify(
             this->gattc_if_,
@@ -797,6 +804,14 @@ void EqivaKeyBle::setup() {
   this->set_auto_connect(this->disconnect_timeout_ == 0);
   this->last_status_update_time_ = millis();
   this->last_contact_time_ = millis();
+#ifdef USE_SENSOR
+  if (this->consecutive_connect_failures_sensor_ != nullptr) {
+    this->consecutive_connect_failures_sensor_->publish_state(0);
+  }
+  if (this->last_contact_duration_sensor_ != nullptr) {
+    this->last_contact_duration_sensor_->publish_state(0);
+  }
+#endif
 }
 
 #ifdef USE_ESP32_BLE_DEVICE
@@ -890,6 +905,11 @@ void EqivaKeyBle::loop() {
       if (this->consecutive_connect_failures_ > 0) {
         ESP_LOGI(TAG, "BLE connection established! Resetting failure counter (was %u)", this->consecutive_connect_failures_);
         this->consecutive_connect_failures_ = 0;
+#ifdef USE_SENSOR
+        if (this->consecutive_connect_failures_sensor_ != nullptr) {
+          this->consecutive_connect_failures_sensor_->publish_state(0);
+        }
+#endif
       }
     }
     if (current_state == espbt::ClientState::IDLE) {
@@ -910,12 +930,26 @@ void EqivaKeyBle::loop() {
           this->consecutive_connect_failures_++;
           ESP_LOGW(TAG, "BLE connection attempt failed! Consecutive failures: %u",
                    this->consecutive_connect_failures_);
+#ifdef USE_SENSOR
+          if (this->consecutive_connect_failures_sensor_ != nullptr) {
+            this->consecutive_connect_failures_sensor_->publish_state(this->consecutive_connect_failures_);
+          }
+#endif
         }
       }
     }
   }
 
   uint32_t now = millis();
+#ifdef USE_SENSOR
+  if (now - this->last_telemetry_publish_time_ >= 30000) {
+    this->last_telemetry_publish_time_ = now;
+    if (this->last_contact_duration_sensor_ != nullptr) {
+      float dur_s = (now - this->last_contact_time_) / 1000.0f;
+      this->last_contact_duration_sensor_->publish_state(dur_s);
+    }
+  }
+#endif
   if (this->state() == espbt::ClientState::IDLE && this->address_ != 0 && this->address_ != 1) {
     uint32_t time_since_contact = now - this->last_contact_time_;
 

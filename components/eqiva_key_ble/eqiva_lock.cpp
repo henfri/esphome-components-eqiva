@@ -52,9 +52,17 @@ void EqivaLockEntity::control(const lock::LockCall &call) {
   auto state = *call.get_state();
 
   if (state == lock::LOCK_STATE_LOCKED) {
+    if (this->state == lock::LOCK_STATE_LOCKING) {
+      ESP_LOGD(TAG, "Lock already locking; ignoring redundant command");
+      return;
+    }
     this->publish_state(lock::LOCK_STATE_LOCKING);
     this->parent_->sendCommand(LOCK);
   } else if (state == lock::LOCK_STATE_UNLOCKED) {
+    if (this->state == lock::LOCK_STATE_UNLOCKING) {
+      ESP_LOGD(TAG, "Lock already unlocking; ignoring redundant command");
+      return;
+    }
     this->publish_state(lock::LOCK_STATE_UNLOCKING);
     this->parent_->sendCommand(UNLOCK);
   }
@@ -62,6 +70,12 @@ void EqivaLockEntity::control(const lock::LockCall &call) {
 
 void EqivaLockEntity::open_latch() {
   if (this->parent_ != nullptr) {
+    uint32_t now = millis();
+    if (this->state == lock::LOCK_STATE_UNLOCKING && (now - this->last_open_time_ < 4000)) {
+      ESP_LOGD(TAG, "Lock already pulling latch/unlocking; ignoring duplicate open command");
+      return;
+    }
+    this->last_open_time_ = now;
     this->publish_state(lock::LOCK_STATE_UNLOCKING);
     this->parent_->sendCommand(OPEN);
   }

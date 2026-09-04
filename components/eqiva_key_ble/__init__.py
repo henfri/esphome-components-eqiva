@@ -21,7 +21,7 @@ CONF_MAX_CONNECT_FAILURES = "max_connect_failures"
 CONF_WATCHDOG_SCANNER_TIMEOUT = "watchdog_scanner_timeout"
 CONF_WATCHDOG_REBOOT_TIMEOUT = "watchdog_reboot_timeout"
 
-AUTO_LOAD = ["esp32_ble_client", "text_sensor"]
+AUTO_LOAD = ["esp32_ble_client", "text_sensor", "sensor"]
 DEPENDENCIES = ["esp32_ble_tracker"]
 CODEOWNERS = ["@digaus"]
 

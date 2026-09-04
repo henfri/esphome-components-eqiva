@@ -37,6 +37,7 @@ class EqivaLockEntity : public lock::Lock, public Component {
   EqivaKeyBle *parent_{nullptr};
   binary_sensor::BinarySensor *latch_sensor_{nullptr};
   bool invert_latch_sensor_{false};
+  uint32_t last_open_time_{0};
 };
 
 }  // namespace eqiva_key_ble

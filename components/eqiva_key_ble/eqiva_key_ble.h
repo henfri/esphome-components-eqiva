@@ -3,6 +3,9 @@
 #include "esphome/components/esp32_ble_client/ble_client_base.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/text_sensor/text_sensor.h"
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/application.h"
@@ -164,6 +167,10 @@ class EqivaKeyBle : public BLEClientBase {
         void set_user_key_sensor(text_sensor::TextSensor *user_key_sensor) { this->user_key_sensor_ = user_key_sensor; }
         void set_user_id_sensor(text_sensor::TextSensor *user_id_sensor) { this->user_id_sensor_ = user_id_sensor; }
         void set_mac_address_sensor(text_sensor::TextSensor *mac_address_sensor) { this->mac_address_sensor_ = mac_address_sensor; }
+#ifdef USE_SENSOR
+        void set_consecutive_connect_failures_sensor(sensor::Sensor *s) { this->consecutive_connect_failures_sensor_ = s; }
+        void set_last_contact_duration_sensor(sensor::Sensor *s) { this->last_contact_duration_sensor_ = s; }
+#endif
 
         void set_state(esphome::esp32_ble_tracker::ClientState st) {
             BLEClientBase::set_state(st);
@@ -205,6 +212,11 @@ class EqivaKeyBle : public BLEClientBase {
         text_sensor::TextSensor *user_key_sensor_{nullptr};
         text_sensor::TextSensor *user_id_sensor_{nullptr};
         text_sensor::TextSensor *mac_address_sensor_{nullptr};
+#ifdef USE_SENSOR
+        sensor::Sensor *consecutive_connect_failures_sensor_{nullptr};
+        sensor::Sensor *last_contact_duration_sensor_{nullptr};
+#endif
+        uint32_t last_telemetry_publish_time_{0};
 
 };
 
