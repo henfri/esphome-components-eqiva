@@ -13,6 +13,14 @@ void EqivaLockEntity::setup() {
     this->parent_->register_status_callback([this](LockStatus status, bool low_battery) {
       this->update_state_(status);
     });
+    this->parent_->register_connection_state_callback([this](espbt::ClientState ble_state) {
+      if (ble_state == espbt::ClientState::IDLE) {
+        if (this->state == lock::LOCK_STATE_LOCKING || this->state == lock::LOCK_STATE_UNLOCKING) {
+          ESP_LOGI(TAG, "BLE returned to IDLE while in transient state; restoring actual state");
+          this->update_state_(this->parent_->get_current_lock_status());
+        }
+      }
+    });
   }
 
 #ifdef USE_BINARY_SENSOR

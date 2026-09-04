@@ -871,6 +871,27 @@ void EqivaKeyBle::loop() {
   // - INIT → IDLE (registers GATT app via esp_ble_gattc_app_register)
   // - DISCONNECTING timeout → forces IDLE if CLOSE_EVT never arrives
   BLEClientBase::loop();
+
+  espbt::ClientState current_state = this->state();
+  if (current_state != this->previous_client_state_) {
+    this->previous_client_state_ = current_state;
+    for (auto &cb : this->connection_state_callbacks_) {
+      cb(current_state);
+    }
+    if (current_state == espbt::ClientState::IDLE) {
+      if (this->currentMsg != nullptr) {
+        ESP_LOGD(TAG, "Cleaning up undelivered message on transition to IDLE");
+        delete this->currentMsg;
+        this->currentMsg = nullptr;
+      }
+      while (!this->sendQueue.empty()) {
+        this->sendQueue.pop();
+      }
+      this->sending = 0;
+      this->sendingNonce = false;
+    }
+  }
+
   uint32_t now = millis();
   if (this->state() == espbt::ClientState::ESTABLISHED) {
     if (this->disconnect_timeout_ > 0) {

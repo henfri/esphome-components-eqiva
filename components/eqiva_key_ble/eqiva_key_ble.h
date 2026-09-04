@@ -156,6 +156,9 @@ class EqivaKeyBle : public BLEClientBase {
         void register_status_callback(std::function<void(LockStatus, bool)> &&callback) {
             this->status_callbacks_.push_back(std::move(callback));
         }
+        void register_connection_state_callback(std::function<void(espbt::ClientState)> &&callback) {
+            this->connection_state_callbacks_.push_back(std::move(callback));
+        }
         LockStatus get_current_lock_status() const { return this->current_lock_status_; }
 
         void clear_bonds_and_cache(const std::string &mac);
@@ -166,6 +169,8 @@ class EqivaKeyBle : public BLEClientBase {
     protected: 
         LockStatus current_lock_status_{UNKNOWN};
         std::vector<std::function<void(LockStatus, bool)>> status_callbacks_;
+        std::vector<std::function<void(espbt::ClientState)>> connection_state_callbacks_;
+        espbt::ClientState previous_client_state_{espbt::ClientState::INIT};
         uint64_t configured_mac_address_{0};
         text_sensor::TextSensor *lock_ble_state_sensor_{nullptr};                
         text_sensor::TextSensor *low_battery_sensor_{nullptr};
