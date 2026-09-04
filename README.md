@@ -59,6 +59,8 @@ eqiva_key_ble:
     # disconnect_timeout: 0s   # Default: 0s (Permanent connection, fastest response)
     # disconnect_timeout: 10s  # Optional: Connect-on-demand (disconnects after 10s idle)
     # status_update_interval: 2h
+    # watchdog_scanner_timeout: 30min # Default: 30min. Restarts GAP scanner if no packets seen (0 = disabled)
+    # watchdog_reboot_timeout: 60min  # Default: 60min. Reboots ESP32 if lock remains unreachable (0 = disabled)
 
 text_sensor:
   - platform: eqiva_key_ble
@@ -111,12 +113,27 @@ esp32:
 
 ---
 
-## 4. Alternative / Flexible Setup (Dynamic UI Inputs & Pairing)
+## 4. Self-Healing Watchdogs & Fault Recovery
+
+Single-radio ESP32 boards sharing 2.4 GHz WiFi and Bluetooth (coexistence) can occasionally experience BLE GAP scanner lockups under heavy radio traffic or prolonged runtime. This component features an automatic 2-stage recovery watchdog:
+
+* **Staged Liveness Tracking:** Tracks contact with the lock across both passive BLE advertisements (`parse_device`) and active GATT connections (`ClientState::ESTABLISHED`).
+* **Stage 1 – Scanner Reset (`watchdog_scanner_timeout`, Default: 30 min):**
+  If no advertisement or connection has succeeded for the configured duration, the component transparently stops and restarts the background BLE continuous scan (`esp32_ble_tracker`). This revives stalled Bluedroid GAP scanners without resetting the ESP32 or dropping WiFi.
+* **Stage 2 – Safe ESP32 Reboot (`watchdog_reboot_timeout`, Default: 60 min):**
+  If the radio driver or transceiver hardware remains in an unrecoverable lockup beyond this threshold, a clean `App.safe_reboot()` is triggered.
+* **Runtime Configurable:** Timeouts can be set to `0` to disable, or dynamically adjusted via Home Assistant / ESPHome actions (`eqiva_key_ble.set_watchdog_scanner_timeout` and `eqiva_key_ble.set_watchdog_reboot_timeout`).
+* **State Recovery & Delayed Command Prevention:**
+  If a connection fails or times out while the lock was requested to unlock/lock, the native lock entity immediately rolls back from transient `UNLOCKING`/`LOCKING` states to the actual door state as soon as BLE returns to `IDLE`. Any stale unexecuted commands in the send queue are safely discarded to prevent delayed "ghost" unlocks.
+
+---
+
+## 5. Alternative / Flexible Setup (Dynamic UI Inputs & Pairing)
 
 If you prefer to configure your lock credentials dynamically from Home Assistant (without hardcoding them or editing `secrets.yaml`), or need to perform initial pairing via the Web UI:
 
 See [`example.yaml`](example.yaml) in this repository for the full configuration containing:
 * Text fields for `mac_address`, `user_key`, and `card_key`
-* Number field for `user_id`
+* Number field for `user_id`, `disconnect_timeout`, `status_update_interval`, and watchdogs
 * Dropdown selects for `direction` (Left/Right), `position` (Vertical/Horizontal), and `turns` (1-4)
 * Action buttons for **Pair**, **Connect**, **Disconnect**, and **Apply Settings**

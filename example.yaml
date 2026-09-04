@@ -1,6 +1,33 @@
 esphome:
   name: esphome-eqiva-lock
   friendly_name: esphome-eqiva-lock
+  on_boot:
+    priority: -100
+    then:
+      - if:
+          condition:
+            lambda: 'return id(disconnect_timeout).has_state();'
+          then:
+            - eqiva_key_ble.set_disconnect_timeout:
+                timeout: !lambda 'return (uint32_t)(id(disconnect_timeout).state * 1000);'
+      - if:
+          condition:
+            lambda: 'return id(status_update_interval).has_state();'
+          then:
+            - eqiva_key_ble.set_status_update_interval:
+                interval: !lambda 'return (uint32_t)(id(status_update_interval).state * 60 * 1000);'
+      - if:
+          condition:
+            lambda: 'return id(watchdog_scanner_timeout).has_state();'
+          then:
+            - eqiva_key_ble.set_watchdog_scanner_timeout:
+                timeout: !lambda 'return (uint32_t)(id(watchdog_scanner_timeout).state * 60 * 1000);'
+      - if:
+          condition:
+            lambda: 'return id(watchdog_reboot_timeout).has_state();'
+          then:
+            - eqiva_key_ble.set_watchdog_reboot_timeout:
+                timeout: !lambda 'return (uint32_t)(id(watchdog_reboot_timeout).state * 60 * 1000);'
 
 esp32:
   variant: ESP32S3
@@ -92,6 +119,9 @@ eqiva_key_ble:
   disconnect_timeout: 10s
   # When disconnect_timeout is set, define how often to reconnect to query status (default 2h)
   status_update_interval: 2h
+  # Self-healing watchdogs (0 = disabled)
+  watchdog_scanner_timeout: 30min # Restarts continuous BLE scan if lock is not seen
+  watchdog_reboot_timeout: 60min  # Reboots ESP32 if lock remains unreachable
 
 
 button:
@@ -184,6 +214,70 @@ number:
     step: 1
     optimistic: true
     restore_value: true
+
+  - platform: template
+    mode: box
+    name: Disconnect Timeout
+    id: disconnect_timeout
+    icon: "mdi:timer-sand"
+    unit_of_measurement: "s"
+    min_value: 0
+    max_value: 3600
+    step: 1
+    initial_value: 10
+    optimistic: true
+    restore_value: true
+    set_action:
+      - eqiva_key_ble.set_disconnect_timeout:
+          timeout: !lambda 'return (uint32_t)(x * 1000);'
+
+  - platform: template
+    mode: box
+    name: Status Update Interval
+    id: status_update_interval
+    icon: "mdi:update"
+    unit_of_measurement: "min"
+    min_value: 1
+    max_value: 1440
+    step: 1
+    initial_value: 120
+    optimistic: true
+    restore_value: true
+    set_action:
+      - eqiva_key_ble.set_status_update_interval:
+          interval: !lambda 'return (uint32_t)(x * 60 * 1000);'
+
+  - platform: template
+    mode: box
+    name: Watchdog Scanner Timeout
+    id: watchdog_scanner_timeout
+    icon: "mdi:radar"
+    unit_of_measurement: "min"
+    min_value: 0
+    max_value: 360
+    step: 1
+    initial_value: 30
+    optimistic: true
+    restore_value: true
+    set_action:
+      - eqiva_key_ble.set_watchdog_scanner_timeout:
+          timeout: !lambda 'return (uint32_t)(x * 60 * 1000);'
+
+  - platform: template
+    mode: box
+    name: Watchdog Reboot Timeout
+    id: watchdog_reboot_timeout
+    icon: "mdi:restart-alert"
+    unit_of_measurement: "min"
+    min_value: 0
+    max_value: 1440
+    step: 1
+    initial_value: 60
+    optimistic: true
+    restore_value: true
+    set_action:
+      - eqiva_key_ble.set_watchdog_reboot_timeout:
+          timeout: !lambda 'return (uint32_t)(x * 60 * 1000);'
   
 select:
   - platform: template
