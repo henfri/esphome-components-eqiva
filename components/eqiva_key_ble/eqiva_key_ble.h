@@ -34,13 +34,10 @@ class EqivaKeyBle : public BLEClientBase {
     BLECharacteristic *write;
     BLECharacteristic *read;
     bool sendingNonce;
-    unsigned long sending;
+    uint32_t sending_time_ms_{0};
     eQ3Message::Message *currentMsg;
     bool requestPair;
 
-    unsigned long getTime() {
-        return millis() / 1000;
-    }
     std::string getClientState() {
         std::string client_state;
         switch(this->state()) {
@@ -109,7 +106,9 @@ class EqivaKeyBle : public BLEClientBase {
 
         void set_state(esphome::esp32_ble_tracker::ClientState st) {
             BLEClientBase::set_state(st);
-            this->lock_ble_state_sensor_->publish_state(getClientState()); 
+            if (this->lock_ble_state_sensor_ != nullptr) {
+                this->lock_ble_state_sensor_->publish_state(getClientState());
+            }
         };
         void dump_config() override;
         bool gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
@@ -187,8 +186,8 @@ class EqivaPair : public Action<Ts...>, public Parented<EqivaKeyBle> {
             auto card_key = this->card_key_.value(x...);
             auto mac_address = this->mac_address_.value(x...);
             this->parent_->set_card_key(card_key);
-            this->parent_->startPair();
             this->parent_->set_address(string_to_mac(mac_address));
+            this->parent_->startPair();
         }
 };
 

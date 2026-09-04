@@ -43,11 +43,11 @@ bool eQ3Message::MessageFragment::isComplete() {
 // -----------------------------------------------------------------------------
 // --[getType]-----------------------------------------......-------------------
 // -----------------------------------------------------------------------------
-char eQ3Message::MessageFragment::getType() {
-    if (isFirst()) {
-        return data[1];
+uint8_t eQ3Message::MessageFragment::getType() {
+    if (isFirst() && data.length() > 1) {
+        return (uint8_t) data[1];
     }
-    return false;
+    return 0;
 }
 
 // -----------------------------------------------------------------------------
@@ -78,7 +78,7 @@ bool eQ3Message::Message::isSecure() {
 // -----------------------------------------------------------------------------
 // --[isTypeSecure]-------------------------------------------------------------
 // -----------------------------------------------------------------------------
-bool eQ3Message::Message::isTypeSecure(char type) {
+bool eQ3Message::Message::isTypeSecure(uint8_t type) {
     return static_cast<bool>(type & (1 << 7));
 }
 
@@ -99,28 +99,28 @@ eQ3Message::Connection_Info_Message::Connection_Info_Message() {
 // --[getUserId]----------------------------------------------------------------
 // -----------------------------------------------------------------------------
 char eQ3Message::Connection_Info_Message::getUserId() {
-    return data[1];
+    return data.length() > 1 ? data[1] : 0;
 }
 
 // -----------------------------------------------------------------------------
 // --[getRemoteSessionNonce]----------------------------------------------------
 // -----------------------------------------------------------------------------
 string eQ3Message::Connection_Info_Message::getRemoteSessionNonce() {
-    return data.substr(2, 8);
+    return data.length() >= 10 ? data.substr(2, 8) : "";
 }
 
 // -----------------------------------------------------------------------------
 // --[getBootloaderVersion]-----------------------------------------------------
 // -----------------------------------------------------------------------------
 char eQ3Message::Connection_Info_Message::getBootloaderVersion() {
-    return data[11];
+    return data.length() >= 12 ? data[11] : 0;
 }
 
 // -----------------------------------------------------------------------------
 // --[getAppVersion]------------------------------------------------------------
 // -----------------------------------------------------------------------------
 char eQ3Message::Connection_Info_Message::getAppVersion() {
-    return data[12];
+    return data.length() >= 13 ? data[12] : 0;
 }
 
 // -----------------------------------------------------------------------------
@@ -134,14 +134,14 @@ eQ3Message::Status_Changed_Message::Status_Changed_Message() {
 // --[Status_Info_Message]------------------------------------------------------
 // -----------------------------------------------------------------------------
 eQ3Message::Status_Info_Message::Status_Info_Message() {
-    id = 0x83; // TODO: only fits in unsigned char
+    id = 0x83;
 }
 
 // -----------------------------------------------------------------------------
 // --[getLockStatus]------------------------------------------------------------
 // -----------------------------------------------------------------------------
 int eQ3Message::Status_Info_Message::getLockStatus() {
-    return data[2] & 0x07;
+    return data.length() > 2 ? (data[2] & 0x07) : 0;
 }
 
 
@@ -149,21 +149,21 @@ int eQ3Message::Status_Info_Message::getLockStatus() {
 // --[isBatteryLow]------------------------------------------------------------
 // -----------------------------------------------------------------------------
 bool eQ3Message::Status_Info_Message::isBatteryLow() {
-    return (data[1] & (1 << 7)) != 0;
+    return data.length() > 1 ? ((data[1] & (1 << 7)) != 0) : false;
 }
 
 // -----------------------------------------------------------------------------
 // --[getUserRightType]---------------------------------------------------------
 // -----------------------------------------------------------------------------
 int eQ3Message::Status_Info_Message::getUserRightType() {
-    return (data[1] & 0x30) >> 4;
+    return data.length() > 1 ? ((data[1] & 0x30) >> 4) : 0;
 }
 
 // -----------------------------------------------------------------------------
 // --[StatusRequestMessage]-----------------------------------------------------
 // -----------------------------------------------------------------------------
 eQ3Message::StatusRequestMessage::StatusRequestMessage() {
-    id = 0x82; // TODO: only fits in unsigned char
+    id = 0x82;
 }
 
 // -----------------------------------------------------------------------------
@@ -173,7 +173,7 @@ std::string eQ3Message::StatusRequestMessage::encode(ClientState *state) {
     std::stringstream ss;
     time_t theTime = time(nullptr);
     struct tm *aTime = localtime(&theTime);
-    ss.put((char) (aTime->tm_year - 2000));
+    ss.put((char) (aTime->tm_year - 100));
     ss.put((char) (aTime->tm_mon + 1));
     ss.put((char) (aTime->tm_mday));
     ss.put((char) (aTime->tm_hour));
@@ -211,7 +211,7 @@ std::string eQ3Message::Connection_Request_Message::encode(ClientState *state) {
 // -----------------------------------------------------------------------------
 eQ3Message::CommandMessage::CommandMessage(char command) {
     this->command = command;
-    id = 0x87; // TODO: only fits in unsigned char
+    id = 0x87;
 }
 
 // -----------------------------------------------------------------------------
@@ -234,21 +234,21 @@ eQ3Message::AnswerWithoutSecurityMessage::AnswerWithoutSecurityMessage() {
 // --[AnswerWithSecurityMessage]------------------------------------------------
 // -----------------------------------------------------------------------------
 eQ3Message::AnswerWithSecurityMessage::AnswerWithSecurityMessage() {
-    id = 0x81; // TODO: only fits in unsigned char
+    id = 0x81;
 }
 
 // -----------------------------------------------------------------------------
 // --[getA]---------------------------------------------------------------------
 // -----------------------------------------------------------------------------
 bool eQ3Message::AnswerWithSecurityMessage::getA() {
-    return (data[1] & 0x80) == 0;
+    return data.length() > 1 ? ((data[1] & 0x80) == 0) : false;
 }
 
 // -----------------------------------------------------------------------------
 // --[getB]---------------------------------------------------------------------
 // -----------------------------------------------------------------------------
 bool eQ3Message::AnswerWithSecurityMessage::getB() {
-    return (data[1] & 0x81) == 0;
+    return data.length() > 1 ? ((data[1] & 0x81) == 0) : false;
 }
 
 // -----------------------------------------------------------------------------

@@ -32,7 +32,7 @@ CONFIG_SCHEMA = cv.Schema(
             entity_category=ENTITY_CATEGORY_NONE,
         ),
         cv.Optional(CONF_USER_KEY): text_sensor.text_sensor_schema(
-            entity_category=ENTITY_CATEGORY_NONE,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
         cv.Optional(CONF_USER_ID): text_sensor.text_sensor_schema(
             entity_category=ENTITY_CATEGORY_NONE,

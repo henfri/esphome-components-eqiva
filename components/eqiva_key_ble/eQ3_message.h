@@ -16,7 +16,7 @@ public:
         bool isFirst();
         bool isLast();
         bool isComplete();
-        char getType();
+        uint8_t getType();
         std::string getData();
         time_t timeSent;
         bool sent = false;
@@ -24,12 +24,12 @@ public:
 
     class Message {
     public:
-        char id;
+        uint8_t id{0};
         std::string data;
         Message(std::string data = "");
         virtual std::string encode(ClientState *state);
         bool isSecure();
-        static bool isTypeSecure(char type);
+        static bool isTypeSecure(uint8_t type);
         virtual void decode();
     };
 
