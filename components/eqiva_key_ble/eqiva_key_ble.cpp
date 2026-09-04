@@ -327,6 +327,16 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
             read->handle
           );
 
+          if (errRc != ESP_OK) {
+            ESP_LOGW(TAG, "GATT notify registration failed during service discovery (err=0x%x)", errRc);
+            this->cached_write_handle_ = 0;
+            this->cached_read_handle_ = 0;
+            this->write = nullptr;
+            this->read = nullptr;
+            this->disconnect();
+            break;
+          }
+
           init();
           if (currentMsg == NULL && requestPair == false && clientState.user_key.length() > 0 && clientState.user_id < 255) {
             auto * msg = new eQ3Message::StatusRequestMessage;
@@ -786,7 +796,7 @@ void EqivaKeyBle::sendFragment() {
     this->sending_time_ms_ = now;
     std::string data = sendQueue.front().data;
     sendQueue.pop();
-    ESP_LOGI(TAG, "Sending: %d", (uint8_t *) (data.c_str()));
+    ESP_LOGI(TAG, "Sending %zu bytes", data.size());
     write->write_value((uint8_t *) (data.c_str()), 16, ESP_GATT_WRITE_TYPE_RSP);
 }
 
