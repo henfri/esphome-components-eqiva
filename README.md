@@ -149,3 +149,7 @@ See [`example.yaml`](example.yaml) in this repository for the full configuration
 * Number field for `user_id`, `disconnect_timeout`, `status_update_interval`, and watchdogs
 * Dropdown selects for `direction` (Left/Right), `position` (Vertical/Horizontal), and `turns` (1-4)
 * Action buttons for **Pair**, **Connect**, **Disconnect**, and **Apply Settings**
+
+> [!WARNING]
+> **Security Notice (`user_key` Confidentiality):**
+> The `user_key` is the 128-bit symmetric encryption key used to authenticate commands and unlock the door. While the `user_key` sensor is provided with `entity_category: diagnostic` for debugging during the initial pairing procedure, it should be kept confidential. Once paired and configured in your production YAML (`secrets.yaml`), consider setting `internal: true` or removing the `user_key` sensor from your configuration to prevent exposing the key in web dashboards or local interfaces.

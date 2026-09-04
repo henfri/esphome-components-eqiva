@@ -43,7 +43,9 @@ class EqivaKeyBle : public BLEClientBase {
     bool requestPair{false};
     uint16_t cached_write_handle_{0};
     uint16_t cached_read_handle_{0};
-    bool manually_allocated_chars_{false};
+    BLEService cached_service_{};
+    BLECharacteristic cached_write_char_{};
+    BLECharacteristic cached_read_char_{};
     uint32_t last_activity_time_{0};
     bool handshake_completed_{false};
     uint32_t disconnect_timeout_{0};
@@ -51,6 +53,7 @@ class EqivaKeyBle : public BLEClientBase {
     uint32_t last_status_update_time_{0};
     std::string pending_mac_address_{""};
     bool pending_connect_{false};
+    uint32_t pending_connect_start_time_{0};
     CommandType last_command_sent_{REQUEST_STATUS};
     std::string previous_lock_state_{"UNKNOWN"};
     uint32_t max_connect_failures_{4};
@@ -178,6 +181,7 @@ class EqivaKeyBle : public BLEClientBase {
         void set_pending_connection(const std::string &mac) {
             this->pending_mac_address_ = mac;
             this->pending_connect_ = true;
+            this->pending_connect_start_time_ = millis();
         }
         bool has_pending_connection() const { return this->pending_connect_; }
         std::string get_pending_mac_address() const { return this->pending_mac_address_; }

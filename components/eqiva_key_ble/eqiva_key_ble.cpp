@@ -55,48 +55,43 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
         this->conn_id_ = param->open.conn_id;
         this->set_state(espbt::ClientState::CONNECTED);
 
-        if (this->manually_allocated_chars_) {
-          if (write != nullptr) {
-            if (write->service != nullptr) delete write->service;
-            delete write;
-          }
-          if (read != nullptr) {
-            if (read->service != nullptr) delete read->service;
-            delete read;
-          }
-          this->manually_allocated_chars_ = false;
-        }
+        this->cached_service_.client = this;
 
-        write = new BLECharacteristic();
-        write->handle = this->cached_write_handle_;
-        write->uuid = esp32_ble_tracker::ESPBTUUID::from_raw("3141dd40-15db-11e6-a24b-0002a5d5c51b");
-        write->service = new BLEService();
-        write->service->client = this;
+        this->cached_write_char_.handle = this->cached_write_handle_;
+        this->cached_write_char_.uuid = esp32_ble_tracker::ESPBTUUID::from_raw("3141dd40-15db-11e6-a24b-0002a5d5c51b");
+        this->cached_write_char_.service = &this->cached_service_;
 
-        read = new BLECharacteristic();
-        read->handle = this->cached_read_handle_;
-        read->uuid = esp32_ble_tracker::ESPBTUUID::from_raw("359d4820-15db-11e6-82bd-0002a5d5c51b");
-        read->service = new BLEService();
-        read->service->client = this;
+        this->cached_read_char_.handle = this->cached_read_handle_;
+        this->cached_read_char_.uuid = esp32_ble_tracker::ESPBTUUID::from_raw("359d4820-15db-11e6-82bd-0002a5d5c51b");
+        this->cached_read_char_.service = &this->cached_service_;
 
-        this->manually_allocated_chars_ = true;
+        this->write = &this->cached_write_char_;
+        this->read = &this->cached_read_char_;
 
         esp_err_t errRc = ::esp_ble_gattc_register_for_notify(
             this->gattc_if_,
             this->remote_bda_,
-            read->handle
+            this->read->handle
         );
 
-        this->set_state(espbt::ClientState::ESTABLISHED);
-        clientState.remote_session_nonce.clear();
-        clientState.local_session_nonce.clear();
+        if (errRc != ESP_OK) {
+          ESP_LOGW(TAG, "GATT notify registration failed (err=0x%x). Invalidating cached handles, falling back to full discovery.", errRc);
+          this->cached_write_handle_ = 0;
+          this->cached_read_handle_ = 0;
+          this->write = nullptr;
+          this->read = nullptr;
+        } else {
+          this->set_state(espbt::ClientState::ESTABLISHED);
+          clientState.remote_session_nonce.clear();
+          clientState.local_session_nonce.clear();
 
-        init();
-        if (currentMsg == NULL && requestPair == false && clientState.user_key.length() > 0 && clientState.user_id < 255) {
-          auto * msg = new eQ3Message::StatusRequestMessage;
-          sendMessage(msg, false);
+          init();
+          if (currentMsg == NULL && requestPair == false && clientState.user_key.length() > 0 && clientState.user_id < 255) {
+            auto * msg = new eQ3Message::StatusRequestMessage;
+            sendMessage(msg, false);
+          }
+          return true; // Bypasses BLEClientBase::gattc_event_handler for OPEN_EVT on cache hit
         }
-        return true; // Bypasses BLEClientBase::gattc_event_handler for OPEN_EVT
       }
 
       if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
@@ -221,50 +216,46 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
         this->conn_id_ = param->open.conn_id;
         this->set_state(espbt::ClientState::CONNECTED);
 
-        if (this->manually_allocated_chars_) {
-          if (write != nullptr) {
-            if (write->service != nullptr) delete write->service;
-            delete write;
-          }
-          if (read != nullptr) {
-            if (read->service != nullptr) delete read->service;
-            delete read;
-          }
-          this->manually_allocated_chars_ = false;
-        }
+        this->cached_service_.client = this;
 
-        write = new BLECharacteristic();
-        write->handle = write_handle;
-        write->uuid = esp32_ble_tracker::ESPBTUUID::from_raw("3141dd40-15db-11e6-a24b-0002a5d5c51b");
-        write->service = new BLEService();
-        write->service->client = this;
+        this->cached_write_char_.handle = write_handle;
+        this->cached_write_char_.uuid = esp32_ble_tracker::ESPBTUUID::from_raw("3141dd40-15db-11e6-a24b-0002a5d5c51b");
+        this->cached_write_char_.service = &this->cached_service_;
 
-        read = new BLECharacteristic();
-        read->handle = read_handle;
-        read->uuid = esp32_ble_tracker::ESPBTUUID::from_raw("359d4820-15db-11e6-82bd-0002a5d5c51b");
-        read->service = new BLEService();
-        read->service->client = this;
+        this->cached_read_char_.handle = read_handle;
+        this->cached_read_char_.uuid = esp32_ble_tracker::ESPBTUUID::from_raw("359d4820-15db-11e6-82bd-0002a5d5c51b");
+        this->cached_read_char_.service = &this->cached_service_;
 
         this->cached_write_handle_ = write_handle;
         this->cached_read_handle_ = read_handle;
-        this->manually_allocated_chars_ = true;
+
+        this->write = &this->cached_write_char_;
+        this->read = &this->cached_read_char_;
 
         esp_err_t errRc = ::esp_ble_gattc_register_for_notify(
             this->gattc_if_,
             this->remote_bda_,
-            read->handle
+            this->read->handle
         );
 
-        this->set_state(espbt::ClientState::ESTABLISHED);
-        clientState.remote_session_nonce.clear();
-        clientState.local_session_nonce.clear();
+        if (errRc != ESP_OK) {
+          ESP_LOGW(TAG, "GATT notify registration failed (err=0x%x). Invalidating cached handles, falling back to full discovery.", errRc);
+          this->cached_write_handle_ = 0;
+          this->cached_read_handle_ = 0;
+          this->write = nullptr;
+          this->read = nullptr;
+        } else {
+          this->set_state(espbt::ClientState::ESTABLISHED);
+          clientState.remote_session_nonce.clear();
+          clientState.local_session_nonce.clear();
 
-        init();
-        if (currentMsg == NULL && requestPair == false && clientState.user_key.length() > 0 && clientState.user_id < 255) {
-          auto * msg = new eQ3Message::StatusRequestMessage;
-          sendMessage(msg, false);
+          init();
+          if (currentMsg == NULL && requestPair == false && clientState.user_key.length() > 0 && clientState.user_id < 255) {
+            auto * msg = new eQ3Message::StatusRequestMessage;
+            sendMessage(msg, false);
+          }
+          return true; // Bypasses BLEClientBase::gattc_event_handler for OPEN_EVT on cache hit
         }
-        return true; // Bypasses BLEClientBase::gattc_event_handler for OPEN_EVT
       } else {
         ESP_LOGD(TAG, "Eqiva Lock characteristics not found in local cache. Running standard service search...");
         
@@ -361,20 +352,8 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
         this->cached_read_handle_ = 0;
       }
 #endif
-      if (this->manually_allocated_chars_) {
-        if (write != nullptr) {
-          if (write->service != nullptr) delete write->service;
-          delete write;
-          write = nullptr;
-        }
-        if (read != nullptr) {
-          if (read->service != nullptr) delete read->service;
-          delete read;
-          read = nullptr;
-        }
-        this->manually_allocated_chars_ = false;
-        ESP_LOGD(TAG, "Manually allocated characteristics cleaned up on disconnect/close.");
-      }
+      this->write = nullptr;
+      this->read = nullptr;
       if (this->pending_connect_ && this->state() == espbt::ClientState::IDLE) {
         std::string pending_mac = this->pending_mac_address_;
         this->pending_connect_ = false;
@@ -896,6 +875,11 @@ void EqivaKeyBle::loop() {
   // - DISCONNECTING timeout → forces IDLE if CLOSE_EVT never arrives
   BLEClientBase::loop();
 
+  if (this->pending_connect_ && (millis() - this->pending_connect_start_time_ > 15000)) {
+    ESP_LOGW(TAG, "pending_connect_ timed out after 15s (DISCONNECTING stuck). Clearing flag — next HA trigger will initiate a fresh connect.");
+    this->pending_connect_ = false;
+  }
+
   espbt::ClientState current_state = this->state();
   if (current_state != this->previous_client_state_) {
     this->previous_client_state_ = current_state;
@@ -924,7 +908,7 @@ void EqivaKeyBle::loop() {
       while (!this->sendQueue.empty()) {
         this->sendQueue.pop();
       }
-      this->sending = 0;
+      this->sending_time_ms_ = 0;
       this->sendingNonce = false;
 
       if (this->connect_in_progress_) {
@@ -985,9 +969,10 @@ void EqivaKeyBle::loop() {
         this->disconnect();
       }
     } else {
-      // Continuous connection mode: refresh status every 4 minutes (240000 ms)
-      if (now - this->last_status_update_time_ > 240000) {
-        ESP_LOGI(TAG, "Continuous connection status update interval reached. Requesting status...");
+      // Continuous connection mode: refresh status periodically using configured interval (default 15 min / 900000 ms)
+      uint32_t interval = this->status_update_interval_ > 0 ? this->status_update_interval_ : 900000;
+      if (now - this->last_status_update_time_ > interval) {
+        ESP_LOGI(TAG, "Continuous connection status update interval reached (%u ms). Requesting status...", interval);
         this->last_status_update_time_ = now;
         this->sendCommand(REQUEST_STATUS);
       }
