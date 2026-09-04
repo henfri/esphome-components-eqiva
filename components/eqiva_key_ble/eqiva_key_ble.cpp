@@ -80,6 +80,13 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
           this->cached_read_handle_ = 0;
           this->write = nullptr;
           this->read = nullptr;
+#ifdef CONFIG_BT_GATTC_CACHE_NVS_FLASH
+          esp_ble_gattc_cache_clean(this->remote_bda_);
+#endif
+          this->set_connection_type(espbt::ConnectionType::V3_WITHOUT_CACHE);
+          BLEClientBase::set_state(espbt::ClientState::CONNECTED);
+          esp_ble_gattc_search_service(this->gattc_if_, param->open.conn_id, nullptr);
+          return true;
         } else {
           this->set_state(espbt::ClientState::ESTABLISHED);
           clientState.remote_session_nonce.clear();
@@ -244,6 +251,13 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
           this->cached_read_handle_ = 0;
           this->write = nullptr;
           this->read = nullptr;
+#ifdef CONFIG_BT_GATTC_CACHE_NVS_FLASH
+          esp_ble_gattc_cache_clean(this->remote_bda_);
+#endif
+          this->set_connection_type(espbt::ConnectionType::V3_WITHOUT_CACHE);
+          BLEClientBase::set_state(espbt::ClientState::CONNECTED);
+          esp_ble_gattc_search_service(this->gattc_if_, param->open.conn_id, nullptr);
+          return true;
         } else {
           this->set_state(espbt::ClientState::ESTABLISHED);
           clientState.remote_session_nonce.clear();
