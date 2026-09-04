@@ -5,6 +5,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/application.h"
 
 #include <queue>
 #include "eQ3_constants.h"
@@ -49,6 +50,11 @@ class EqivaKeyBle : public BLEClientBase {
     bool pending_connect_{false};
     CommandType last_command_sent_{REQUEST_STATUS};
     std::string previous_lock_state_{"UNKNOWN"};
+    uint32_t max_connect_failures_{4};
+    uint32_t consecutive_connect_failures_{0};
+    bool connect_in_progress_{false};
+    bool connection_succeeded_this_cycle_{false};
+    uint32_t last_advertisement_time_{0};
 
     unsigned long getTime() {
         return millis() / 1000;
@@ -104,6 +110,12 @@ class EqivaKeyBle : public BLEClientBase {
             if (this->disconnect_timeout_ > 0 && this->status_update_interval_ > 0) {
                 this->enable_loop();
             }
+        }
+        void set_max_connect_failures(uint32_t count) {
+            this->max_connect_failures_ = count;
+        }
+        uint32_t get_consecutive_connect_failures() const {
+            return this->consecutive_connect_failures_;
         }
         void connect();
         void disconnect();

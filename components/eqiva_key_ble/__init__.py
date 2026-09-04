@@ -17,6 +17,7 @@ CONF_KEY_HORIZONTAL = "key_horizontal"
 CONF_LOCK_TURNS = "lock_turns"
 CONF_DISCONNECT_TIMEOUT = "disconnect_timeout"
 CONF_STATUS_UPDATE_INTERVAL = "status_update_interval"
+CONF_MAX_CONNECT_FAILURES = "max_connect_failures"
 
 AUTO_LOAD = ["esp32_ble_client", "text_sensor"]
 DEPENDENCIES = ["esp32_ble_tracker"]
@@ -45,6 +46,7 @@ CONFIG_SCHEMA = cv.ensure_list(
             cv.Optional(CONF_USER_KEY, default=""): cv.string,
             cv.Optional(CONF_DISCONNECT_TIMEOUT, default="0s"): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_STATUS_UPDATE_INTERVAL, default="2h"): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_MAX_CONNECT_FAILURES, default=4): cv.positive_int,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -63,6 +65,7 @@ async def to_code(configs):
         cg.add(var.set_user_key(config[CONF_USER_KEY]))
         cg.add(var.set_disconnect_timeout(config[CONF_DISCONNECT_TIMEOUT]))
         cg.add(var.set_status_update_interval(config[CONF_STATUS_UPDATE_INTERVAL]))
+        cg.add(var.set_max_connect_failures(config[CONF_MAX_CONNECT_FAILURES]))
 
 
 @automation.register_action(
