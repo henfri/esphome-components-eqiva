@@ -42,18 +42,28 @@ bool EqivaKeyBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
       if (this->state() == espbt::ClientState::ESTABLISHED) {
         clientState.remote_session_nonce.clear();
         clientState.local_session_nonce.clear();
-        write = this->get_characteristic(esp32_ble_tracker::ESPBTUUID::from_raw("58e06900-15d8-11e6-b737-0002a5d5c51b"), esp32_ble_tracker::ESPBTUUID::from_raw("3141dd40-15db-11e6-a24b-0002a5d5c51b"));
-        read = this->get_characteristic(esp32_ble_tracker::ESPBTUUID::from_raw("58e06900-15d8-11e6-b737-0002a5d5c51b"), esp32_ble_tracker::ESPBTUUID::from_raw("359d4820-15db-11e6-82bd-0002a5d5c51b"));
-        esp_err_t errRc = ::esp_ble_gattc_register_for_notify(
-          this->gattc_if_,
-          this->remote_bda_,
-          read->handle
-        );
+        if (write != nullptr && read != nullptr) {
+          esp_err_t errRc = ::esp_ble_gattc_register_for_notify(
+            this->gattc_if_,
+            this->remote_bda_,
+            read->handle
+          );
 
-        init();
-        if (currentMsg == NULL && requestPair == false && clientState.user_key.length() > 0 && clientState.user_id < 255) {
-          auto * msg = new eQ3Message::StatusRequestMessage;
-          sendMessage(msg, false);
+          if (errRc != ESP_OK) {
+            ESP_LOGW(TAG, "GATT notify registration failed during service discovery (err=0x%x)", errRc);
+            this->write = nullptr;
+            this->read = nullptr;
+            this->disconnect();
+            break;
+          }
+
+          init();
+          if (currentMsg == NULL && requestPair == false && clientState.user_key.length() > 0 && clientState.user_id < 255) {
+            auto * msg = new eQ3Message::StatusRequestMessage;
+            sendMessage(msg, false);
+          }
+        } else {
+          ESP_LOGE(TAG, "Failed to find write or read characteristic during service discovery!");
         }
   
       }
@@ -425,7 +435,7 @@ void EqivaKeyBle::sendFragment() {
     this->sending_time_ms_ = now;
     std::string data = sendQueue.front().data;
     sendQueue.pop();
-    ESP_LOGI(TAG, "Sending: %d", (uint8_t *) (data.c_str()));
+    ESP_LOGI(TAG, "Sending %zu bytes", data.size());
     write->write_value((uint8_t *) (data.c_str()), 16, ESP_GATT_WRITE_TYPE_RSP);
 }
 
